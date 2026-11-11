@@ -78,6 +78,8 @@ const BODY = String.raw`
 `;
 
 const SCRIPT = String.raw`
+  // Always focus with preventScroll. The page is as wide as the longest line of the file, so a plain
+  // focus() makes the browser scroll the editor sideways, and the editor can not scroll back by itself.
   const api = acquireVsCodeApi();
   const input = document.getElementById('input');
   const modeEl = document.getElementById('mode');
@@ -151,7 +153,7 @@ const SCRIPT = String.raw`
     state = Object.assign({}, state, msg);
     if (typeof msg.inputValue === 'string') { input.value = msg.inputValue; }
     render();
-    if (msg.focus) { input.focus(); input.select(); }
+    if (msg.focus) { input.focus({ preventScroll: true }); input.select(); }
   });
 
   input.addEventListener('input', function () {
@@ -193,7 +195,7 @@ const SCRIPT = String.raw`
   rejectBtn.addEventListener('click', function () { api.postMessage({ type: 'reject' }); });
 
   render();
-  input.focus();
+  input.focus({ preventScroll: true });
   api.postMessage({ type: 'ready' });
 `;
 
