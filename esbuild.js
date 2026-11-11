@@ -11,6 +11,8 @@ async function main() {
     target: "node18",
     outfile: "dist/extension.js",
     external: ["vscode"],
+    // jsonc-parser's "main" is a UMD build whose requires esbuild can't follow; its "module" build bundles.
+    mainFields: ["module", "main"],
     sourcemap: true,
     minify: !watch,
     logLevel: "info",

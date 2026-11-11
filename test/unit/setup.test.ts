@@ -1,4 +1,6 @@
 import * as assert from "assert";
+import * as path from "path";
+import { argvPath } from "../../src/setup/argv";
 import { offerSetupOnce, runSetup, SetupState, SetupStep } from "../../src/setup/runner";
 
 function memoryState(): SetupState {
@@ -46,5 +48,16 @@ describe("Setup runner", () => {
     await offerSetupOnce(state, offer);
     await offerSetupOnce(state, offer);
     assert.strictEqual(offers, 1);
+  });
+});
+
+describe("argv.json location", () => {
+  it("follows the application name", () => {
+    assert.strictEqual(argvPath("Cursor", "/home/me"), path.join("/home/me", ".cursor", "argv.json"));
+    assert.strictEqual(argvPath("Visual Studio Code", "/home/me"), path.join("/home/me", ".vscode", "argv.json"));
+    assert.strictEqual(
+      argvPath("Visual Studio Code - Insiders", "/home/me"),
+      path.join("/home/me", ".vscode-insiders", "argv.json")
+    );
   });
 });
