@@ -8,9 +8,11 @@ import { MockServer, startMockServer } from "../support/mockServer";
 
 let server: MockServer;
 const argvPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "quickk-argv-")), "argv.json");
+const keybindingsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "quickk-keys-")), "keybindings.json");
 
 const config = () => vscode.workspace.getConfiguration("quickk");
-const setUp = (args: object) => vscode.commands.executeCommand<string[]>("quickk.setUp", { argvPath, ...args });
+const setUp = (args: object) =>
+  vscode.commands.executeCommand<string[]>("quickk.setUp", { argvPath, keybindingsPath, ...args });
 
 describe("Setup", function () {
   before(async () => {
@@ -68,6 +70,36 @@ describe("Setup", function () {
 
     assert.deepStrictEqual(await inline({ inlineBox: true }), [], "a second run asks nothing");
     assert.strictEqual(fs.readFileSync(argvPath, "utf8"), text, "a second run changes nothing");
+  });
+
+  it("does not ask the shortcut step outside Cursor", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    const asked = await setUp({ inlineBoxAvailable: true, answers: { shortcut: true } });
+    assert.deepStrictEqual(asked, []);
+    assert.ok(!fs.existsSync(keybindingsPath), "nothing is written");
+  });
+
+  it("in Cursor, the shortcut step adds the Cmd+K bindings, keeping the user's, and a second run changes nothing", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    const original = '// mine\n[{ "key": "cmd+s", "command": "mine" }]\n';
+    fs.writeFileSync(keybindingsPath, original);
+    const cursor = (answers: object, auto = false) =>
+      setUp({ isCursor: true, inlineBoxAvailable: true, auto, answers });
+
+    assert.deepStrictEqual(await cursor({}), ["shortcut"], "first run asks");
+    assert.deepStrictEqual(await cursor({}, true), [], "a declined step is skipped automatically");
+    assert.strictEqual(fs.readFileSync(keybindingsPath, "utf8"), original, "a decline writes nothing");
+
+    assert.deepStrictEqual(await cursor({ shortcut: true }), ["shortcut"], "the command asks again");
+    const text = fs.readFileSync(keybindingsPath, "utf8");
+    assert.deepStrictEqual(
+      parse(text).map((binding: { command: string }) => binding.command),
+      ["mine", "quickk.editor", "quickk.terminal"]
+    );
+    assert.ok(text.startsWith("// mine\n"), "comments are kept");
+
+    assert.deepStrictEqual(await cursor({ shortcut: true }), [], "a second run asks nothing");
+    assert.strictEqual(fs.readFileSync(keybindingsPath, "utf8"), text, "a second run changes nothing");
   });
 
   it("skips the inline box step when the inline box can already be used", async () => {
