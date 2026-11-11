@@ -145,3 +145,5 @@ gh release create vX.Y.Z quickk-X.Y.Z.vsix
 `test:integration` downloads VS Code the first time. It does not call a real AI provider. It runs with the proposed API on. Set `QUICKK_NO_PROPOSED=1` to test the fallback (no inline box). Set `QUICKK_GREP` to run only some tests.
 
 Press `F5` to start an Extension Development Host. For the inline box in it, start it with `--enable-proposed-api=quickk.quickk` (the `.vscode/launch.json` can pass this).
+
+Issues labeled [good first issue](https://github.com/OmerEfron/cmd-k/labels/good%20first%20issue) are a place to start.

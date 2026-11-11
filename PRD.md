@@ -5,7 +5,7 @@
 **Product Type:** VS Code / Cursor Extension  
 **Primary Platform:** macOS  
 **Secondary Platforms:** Windows, Linux  
-**Status:** Proposed
+**Status:** Phase 1 shipped in v0.1.0. Phase 2 and Phase 3 are not built.
 
 ---
 
