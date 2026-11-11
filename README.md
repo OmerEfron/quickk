@@ -95,15 +95,24 @@ When the keyboard focus is in the box, `Cmd+Z` first undoes the text in the box.
 
 ## Shortcut conflicts
 
-`Cmd+K` is the first key of many VS Code shortcuts (chords, such as `Cmd+K Cmd+S`). While the editor has focus, QuickK takes `Cmd+K`, so those chords do not work. This is the same as in Cursor.
+In Cursor, **QuickK: Set Up** asks "Use Cmd+K for QuickK?". On Yes, it adds QuickK's two `Cmd+K` bindings (editor and terminal) to your keybindings file. Cursor's own `Cmd+K` bindings have a higher priority than an extension can set, and only bindings in your keybindings file beat them. Cursor's commands stay available in the command palette.
 
-To fix a conflict:
+If you skipped Setup, do it by hand: run **Preferences: Open Keyboard Shortcuts (JSON)** and add:
+
+```json
+{ "key": "cmd+k", "command": "quickk.editor", "when": "editorTextFocus && !terminalFocus" },
+{ "key": "cmd+k", "command": "quickk.terminal", "when": "terminalFocus" }
+```
+
+Or remove the built-in Cursor bindings that use `Cmd+K` (for example the inline edit).
+
+In VS Code, `Cmd+K` takes over two-key shortcuts such as `Cmd+K Cmd+S` while the editor has focus.
+
+To use another key for QuickK:
 
 1. Open **Preferences: Open Keyboard Shortcuts**.
 2. Search for `quickk`.
 3. Change the key for **QuickK: Edit Selection or Generate Code** and **QuickK: Generate Terminal Command**.
-
-In Cursor, remove the built-in bindings that use `Cmd+K` (for example the inline edit) or QuickK will not get the key.
 
 In the terminal, `Cmd+K` normally clears the terminal. QuickK replaces this while the terminal has focus. You can still use **Terminal: Clear** from the command palette.
 
