@@ -92,11 +92,13 @@ describe("Setup", function () {
 
     assert.deepStrictEqual(await cursor({ shortcut: true }), ["shortcut"], "the command asks again");
     const text = fs.readFileSync(keybindingsPath, "utf8");
-    assert.deepStrictEqual(
-      parse(text).map((binding: { command: string }) => binding.command),
-      ["mine", "quickk.editor", "quickk.terminal"]
-    );
+    assert.deepStrictEqual(parse(text), [
+      { key: "cmd+s", command: "mine" },
+      { command: "quickk.editor", key: "ctrl+k", mac: "cmd+k", when: "editorTextFocus && !terminalFocus" },
+      { command: "quickk.terminal", key: "ctrl+k", mac: "cmd+k", when: "terminalFocus" },
+    ]);
     assert.ok(text.startsWith("// mine\n"), "comments are kept");
+    assert.strictEqual(text.indexOf(`{ "key": "cmd+s", "command": "mine" }`), original.indexOf(`{ "key": "cmd+s", "command": "mine" }`));
 
     assert.deepStrictEqual(await cursor({ shortcut: true }), [], "a second run asks nothing");
     assert.strictEqual(fs.readFileSync(keybindingsPath, "utf8"), text, "a second run changes nothing");
@@ -107,5 +109,92 @@ describe("Setup", function () {
     fs.writeFileSync(argvPath, "{}");
     assert.deepStrictEqual(await setUp({ answers: { inlineBox: true } }), []);
     assert.strictEqual(fs.readFileSync(argvPath, "utf8"), "{}");
+  });
+
+  it("ends with the hint to select code and press Cmd+K", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    const seen: string[] = [];
+    const original = vscode.window.showInformationMessage;
+    vscode.window.showInformationMessage = ((message: string, ...items: string[]) => {
+      seen.push(message);
+      return original(message, ...items);
+    }) as typeof vscode.window.showInformationMessage;
+    try {
+      await setUp({ inlineBoxAvailable: true, answers: {} });
+    } finally {
+      vscode.window.showInformationMessage = original;
+    }
+    assert.deepStrictEqual(seen, ["Select some code and press Cmd+K."]);
+  });
+
+  it("does not record a failed edit as a decline", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    const brokenArgv = "{ nope";
+    fs.writeFileSync(argvPath, brokenArgv);
+    const inline = (auto = false) => setUp({ inlineBoxAvailable: false, auto, answers: { inlineBox: true } });
+    assert.deepStrictEqual(await inline(), ["inlineBox"]);
+    assert.strictEqual(fs.readFileSync(argvPath, "utf8"), brokenArgv);
+    assert.deepStrictEqual(await inline(true), ["inlineBox"]);
+
+    const brokenKeys = "[ { oops";
+    fs.writeFileSync(keybindingsPath, brokenKeys);
+    const shortcut = (auto = false) =>
+      setUp({ isCursor: true, inlineBoxAvailable: true, auto, answers: { shortcut: true } });
+    assert.deepStrictEqual(await shortcut(), ["shortcut"]);
+    assert.strictEqual(fs.readFileSync(keybindingsPath, "utf8"), brokenKeys);
+    assert.deepStrictEqual(await shortcut(true), ["shortcut"]);
+  });
+
+  it("asks again after a dismissed prompt, and skips an explicit No", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    fs.writeFileSync(keybindingsPath, `[{ "key": "cmd+s", "command": "mine" }]\n`);
+    const original = vscode.window.showInformationMessage;
+    const stub = (choice: string | undefined) => {
+      vscode.window.showInformationMessage = (() => Promise.resolve(choice)) as typeof vscode.window.showInformationMessage;
+    };
+    const cursor = (auto = false) => setUp({ isCursor: true, inlineBoxAvailable: true, auto });
+    try {
+      stub(undefined);
+      assert.deepStrictEqual(await cursor(), ["shortcut"], "a dismiss is asked");
+      assert.deepStrictEqual(await cursor(true), ["shortcut"], "a dismiss is asked again");
+      stub("No");
+      assert.deepStrictEqual(await cursor(), ["shortcut"], "an explicit No is asked");
+      assert.deepStrictEqual(await cursor(true), [], "an explicit No is skipped automatically");
+    } finally {
+      vscode.window.showInformationMessage = original;
+    }
+    await setUp({ isCursor: true, inlineBoxAvailable: true, answers: { shortcut: true } });
+  });
+
+  it("treats the inline box as usable only when the proposed API is enabled", async () => {
+    await config().update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+    const original = vscode.window.createWebviewTextEditorInset;
+    const probe = (message: string) => {
+      vscode.window.createWebviewTextEditorInset = (() => {
+        throw new Error(message);
+      }) as typeof vscode.window.createWebviewTextEditorInset;
+    };
+    try {
+      fs.writeFileSync(argvPath, "{}\n");
+      probe("CANNOT use API proposal: editorInsets");
+      assert.deepStrictEqual(await setUp({ answers: { inlineBox: true } }), ["inlineBox"]);
+
+      fs.writeFileSync(argvPath, "{}\n");
+      probe("something unexpected");
+      assert.deepStrictEqual(await setUp({ answers: { inlineBox: true } }), ["inlineBox"]);
+
+      fs.writeFileSync(argvPath, "{}\n");
+      probe("not a visible editor");
+      assert.deepStrictEqual(await setUp({ answers: { inlineBox: true } }), []);
+      assert.strictEqual(fs.readFileSync(argvPath, "utf8"), "{}\n");
+
+      const listed = `{ "enable-proposed-api": ["quickk.quickk"] }\n`;
+      fs.writeFileSync(argvPath, listed);
+      probe("something unexpected");
+      assert.deepStrictEqual(await setUp({ answers: { inlineBox: true } }), []);
+      assert.strictEqual(fs.readFileSync(argvPath, "utf8"), listed);
+    } finally {
+      vscode.window.createWebviewTextEditorInset = original;
+    }
   });
 });

@@ -12,15 +12,14 @@ export function keybindingsPath(globalStorage: string): string {
   return path.join(globalStorage, "..", "..", "keybindings.json");
 }
 
-/** keybindings.json has no `mac` field, so the key for this platform is written. */
-function quickKBindings(platform: NodeJS.Platform): object[] {
+function quickKBindings(): object[] {
   return contributes.keybindings
     .filter((binding) => binding.command === "quickk.editor" || binding.command === "quickk.terminal")
-    .map(({ command, key, mac, when }) => ({ key: platform === "darwin" ? mac ?? key : key, command, when }));
+    .map(({ command, key, mac, when }) => ({ command, key, mac, when }));
 }
 
-export function addQuickKBindings(text: string, platform: NodeJS.Platform = process.platform): string {
-  return addToArray(text, [], quickKBindings(platform));
+export function addQuickKBindings(text: string): string {
+  return addToArray(text, [], quickKBindings());
 }
 
 /** False when the file is missing or can not be parsed. */

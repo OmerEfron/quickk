@@ -31,6 +31,13 @@ describe("Setup runner", () => {
     assert.deepStrictEqual(await runSetup([step("key", true)], state, false), ["key"]);
   });
 
+  it("does not record a dismissed step, so the next automatic run asks again", async () => {
+    const state = memoryState();
+    const dismissed: SetupStep = { id: "inlineBox", isDone: async () => false, ask: async () => undefined };
+    assert.deepStrictEqual(await runSetup([dismissed], state, true), ["inlineBox"]);
+    assert.deepStrictEqual(await runSetup([step("inlineBox", false)], state, true), ["inlineBox"]);
+  });
+
   it("asks a step automatically again once it was accepted after a decline", async () => {
     const state = memoryState();
     await runSetup([step("key", false)], state, false);

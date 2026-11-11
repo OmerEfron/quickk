@@ -1,8 +1,8 @@
-/** One Setup step. `ask` returns false when the user declined. */
+/** One Setup step. `ask` returns false for an explicit decline, and undefined when the user dismissed it or the edit failed. */
 export interface SetupStep {
   id: string;
   isDone(): Promise<boolean>;
-  ask(): Promise<boolean>;
+  ask(): Promise<boolean | undefined>;
 }
 
 /** The part of vscode.Memento that Setup uses. */
@@ -36,7 +36,11 @@ export async function runSetup(steps: SetupStep[], state: SetupState, auto: bool
     }
     asked.push(step.id);
     const others = declined.filter((id) => id !== step.id);
-    await state.update(DECLINED, (await step.ask()) ? others : [...others, step.id]);
+    const accepted = await step.ask();
+    if (accepted === undefined) {
+      continue;
+    }
+    await state.update(DECLINED, accepted ? others : [...others, step.id]);
   }
   return asked;
 }

@@ -28,21 +28,28 @@ function shortcutStep(context: vscode.ExtensionContext, args: SetupArgs): SetupS
     id: "shortcut",
     isDone: async () => !(args.isCursor ?? isCursor(vscode.env.appName)) || (await hasQuickKBindings(file)),
     ask: async () => {
-      const yes = args.answers
-        ? Boolean(args.answers.shortcut)
-        : (await vscode.window.showInformationMessage(
-            `Use Cmd+K for QuickK? QuickK adds its Cmd+K bindings to ${file}.`,
-            "Yes",
-            "No"
-          )) === "Yes";
-      if (!yes) {
-        return false;
+      if (args.answers) {
+        if (!args.answers.shortcut) {
+          return false;
+        }
+      } else {
+        const choice = await vscode.window.showInformationMessage(
+          `Use Cmd+K for QuickK? QuickK adds its Cmd+K bindings to ${file}.`,
+          "Yes",
+          "No"
+        );
+        if (choice === "No") {
+          return false;
+        }
+        if (choice !== "Yes") {
+          return undefined;
+        }
       }
       try {
         await editJsonFile(file, addQuickKBindings);
       } catch (error) {
         void vscode.window.showErrorMessage(`${(error as Error).message} Add QuickK's Cmd+K bindings by hand.`);
-        return false;
+        return undefined;
       }
       return true;
     },
@@ -65,15 +72,17 @@ function apiKeyStep(context: vscode.ExtensionContext, answers: SetupArgs["answer
         "Enter API Key",
         "Get an API key"
       );
+      if (choice === undefined) {
+        return undefined;
+      }
       if (choice === "Get an API key") {
         await vscode.env.openExternal(vscode.Uri.parse(API_KEYS_URL));
       }
-      return choice !== undefined && (await promptForApiKey(context.secrets)) !== undefined;
+      return (await promptForApiKey(context.secrets)) !== undefined ? true : undefined;
     },
   };
 }
 
-/** True if the proposed API "editorInsets" is enabled for QuickK. */
 function insetApiEnabled(): boolean {
   if (typeof vscode.window.createWebviewTextEditorInset !== "function") {
     return false;
@@ -82,7 +91,7 @@ function insetApiEnabled(): boolean {
     // The proposal check runs first. When it passes, an undefined editor fails with "not a visible editor".
     vscode.window.createWebviewTextEditorInset(undefined as unknown as vscode.TextEditor, 0, 0);
   } catch (error) {
-    return !String(error).includes("CANNOT use API proposal");
+    return String(error).includes("not a visible editor");
   }
   return true;
 }
@@ -93,15 +102,22 @@ function inlineBoxStep(args: SetupArgs): SetupStep {
     id: "inlineBox",
     isDone: async () => (args.inlineBoxAvailable ?? insetApiEnabled()) || (await argvListsQuickK(file)),
     ask: async () => {
-      const yes = args.answers
-        ? Boolean(args.answers.inlineBox)
-        : (await vscode.window.showInformationMessage(
-            `Turn on the inline box? QuickK adds itself to "enable-proposed-api" in ${file}.`,
-            "Yes",
-            "No"
-          )) === "Yes";
-      if (!yes) {
-        return false;
+      if (args.answers) {
+        if (!args.answers.inlineBox) {
+          return false;
+        }
+      } else {
+        const choice = await vscode.window.showInformationMessage(
+          `Turn on the inline box? QuickK adds itself to "enable-proposed-api" in ${file}.`,
+          "Yes",
+          "No"
+        );
+        if (choice === "No") {
+          return false;
+        }
+        if (choice !== "Yes") {
+          return undefined;
+        }
       }
       try {
         await editJsonFile(file, addQuickK);
@@ -109,7 +125,7 @@ function inlineBoxStep(args: SetupArgs): SetupStep {
         void vscode.window.showErrorMessage(
           `${(error as Error).message} Add "quickk.quickk" to "enable-proposed-api" by hand.`
         );
-        return false;
+        return undefined;
       }
       if (!args.answers) {
         const choice = await vscode.window.showInformationMessage(
@@ -128,8 +144,7 @@ function inlineBoxStep(args: SetupArgs): SetupStep {
 export async function setUp(context: vscode.ExtensionContext, args: SetupArgs = {}): Promise<string[]> {
   const steps = [shortcutStep(context, args), apiKeyStep(context, args.answers), inlineBoxStep(args)];
   const asked = await runSetup(steps, context.globalState, Boolean(args.auto));
-  const key = process.platform === "darwin" ? "Cmd+K" : "Ctrl+K";
-  void vscode.window.showInformationMessage(`QuickK is ready. Select some code and press ${key}.`);
+  void vscode.window.showInformationMessage("Select some code and press Cmd+K.");
   return asked;
 }
 

@@ -6,11 +6,10 @@ import * as path from "path";
 import { editJsonFile } from "../../src/setup/jsonEdit";
 import { addQuickKBindings, keybindingsPath } from "../../src/setup/shortcut";
 
-const MAC_BINDINGS = [
-  { key: "cmd+k", command: "quickk.editor", when: "editorTextFocus && !terminalFocus" },
-  { key: "cmd+k", command: "quickk.terminal", when: "terminalFocus" },
+const BINDINGS = [
+  { command: "quickk.editor", key: "ctrl+k", mac: "cmd+k", when: "editorTextFocus && !terminalFocus" },
+  { command: "quickk.terminal", key: "ctrl+k", mac: "cmd+k", when: "terminalFocus" },
 ];
-const addMac = (text: string) => addQuickKBindings(text, "darwin");
 
 describe("Cursor shortcut", () => {
   it("finds the default profile's keybindings file from global storage", () => {
@@ -18,15 +17,8 @@ describe("Cursor shortcut", () => {
     assert.strictEqual(keybindingsPath(storage), path.join("/home", "u", "Cursor", "User", "keybindings.json"));
   });
 
-  it("writes both Cmd+K bindings into an empty file", () => {
-    assert.deepStrictEqual(parse(addMac("")), MAC_BINDINGS);
-  });
-
-  it("uses Ctrl+K outside macOS", () => {
-    assert.deepStrictEqual(
-      parse(addQuickKBindings("", "linux")).map((binding: { key: string }) => binding.key),
-      ["ctrl+k", "ctrl+k"]
-    );
+  it("copies both Cmd+K bindings, including key and mac", () => {
+    assert.deepStrictEqual(parse(addQuickKBindings("")), BINDINGS);
   });
 
   it("keeps comments and the user's bindings", () => {
@@ -35,14 +27,23 @@ describe("Cursor shortcut", () => {
   { "key": "cmd+s", "command": "mine" }, // keep me
 ]
 `;
-    const result = addMac(text);
-    assert.deepStrictEqual(parse(result), [{ key: "cmd+s", command: "mine" }, ...MAC_BINDINGS]);
+    const result = addQuickKBindings(text);
+    assert.deepStrictEqual(parse(result), [{ key: "cmd+s", command: "mine" }, ...BINDINGS]);
     assert.ok(result.startsWith("// Place your key bindings in this file\n") && result.includes("// keep me"));
+    assert.strictEqual(result.indexOf(`{ "key": "cmd+s", "command": "mine" }, // keep me`), text.indexOf(`{ "key": "cmd+s", "command": "mine" }, // keep me`));
+  });
+
+  it("does not duplicate bindings that are already copied", () => {
+    const text = `[
+  { "when": "editorTextFocus && !terminalFocus", "mac": "cmd+k", "key": "ctrl+k", "command": "quickk.editor" },
+  { "command": "quickk.terminal", "key": "ctrl+k", "mac": "cmd+k", "when": "terminalFocus" }
+]`;
+    assert.strictEqual(addQuickKBindings(text), text);
   });
 
   it("changes nothing when QuickK's bindings are already there", () => {
-    const text = addMac("[]");
-    assert.strictEqual(addMac(text), text);
+    const text = addQuickKBindings("[]");
+    assert.strictEqual(addQuickKBindings(text), text);
   });
 
   describe("file", () => {
@@ -58,14 +59,14 @@ describe("Cursor shortcut", () => {
 
     it("creates a missing file", async () => {
       const file = path.join(dir, "keybindings.json");
-      assert.strictEqual(await editJsonFile(file, addMac), true);
-      assert.deepStrictEqual(parse(fs.readFileSync(file, "utf8")), MAC_BINDINGS);
+      assert.strictEqual(await editJsonFile(file, addQuickKBindings), true);
+      assert.deepStrictEqual(parse(fs.readFileSync(file, "utf8")), BINDINGS);
     });
 
     it("refuses invalid JSON and writes nothing", async () => {
       const file = path.join(dir, "keybindings.json");
       fs.writeFileSync(file, "[ { oops");
-      await assert.rejects(editJsonFile(file, addMac), /not valid JSON/);
+      await assert.rejects(editJsonFile(file, addQuickKBindings), /not valid JSON/);
       assert.strictEqual(fs.readFileSync(file, "utf8"), "[ { oops");
     });
   });

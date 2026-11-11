@@ -3,7 +3,9 @@ import * as fs from "fs";
 import { parse } from "jsonc-parser";
 import * as os from "os";
 import * as path from "path";
+import { addQuickK } from "../../src/setup/argv";
 import { addToArray, editJsonFile } from "../../src/setup/jsonEdit";
+import { addQuickKBindings } from "../../src/setup/shortcut";
 
 const KEY = ["enable-proposed-api"];
 
@@ -21,18 +23,16 @@ describe("JSONC edit", () => {
   "crash-reporter-id": "abc", // keep me
 }
 `;
+    const result = addToArray(text, KEY, ["quickk.quickk"]);
     assert.strictEqual(
-      addToArray(text, KEY, ["quickk.quickk"]),
-      `// This configuration file allows you to pass permanent command line arguments.
-{
-  // Crash reports
-  "crash-reporter-id": "abc",
-  "enable-proposed-api": [
-    "quickk.quickk"
-  ], // keep me
-}
-`
+      result.indexOf(`"crash-reporter-id": "abc", // keep me`),
+      text.indexOf(`"crash-reporter-id": "abc", // keep me`)
     );
+    assert.ok(result.startsWith("// This configuration file") && result.includes("// Crash reports"));
+    assert.deepStrictEqual(parse(result), {
+      "crash-reporter-id": "abc",
+      "enable-proposed-api": ["quickk.quickk"],
+    });
   });
 
   it("adds QuickK to a list for another extension", () => {
@@ -54,6 +54,18 @@ describe("JSONC edit", () => {
 
   it("refuses invalid JSON", () => {
     assert.throws(() => addToArray(`{ "enable-proposed-api": [ }`, KEY, ["quickk.quickk"]), /not valid JSON/);
+  });
+
+  it("does not move a one-line binding and its comment, or an argv comment", () => {
+    const binding = `{ "key": "cmd+s", "command": "mine" } // keep`;
+    const keys = `[${binding}\n]\n`;
+    const keysResult = addQuickKBindings(keys);
+    assert.strictEqual(keysResult.indexOf(binding), keys.indexOf(binding));
+
+    const comment = `"crash-reporter-id": "abc", // id`;
+    const argv = `{\n  ${comment}\n}\n`;
+    const argvResult = addQuickK(argv);
+    assert.strictEqual(argvResult.indexOf(comment), argv.indexOf(comment));
   });
 });
 
