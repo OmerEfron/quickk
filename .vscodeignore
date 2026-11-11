@@ -11,3 +11,4 @@ tsconfig.json
 esbuild.js
 **/*.map
 .gitignore
+.github/**
