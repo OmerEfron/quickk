@@ -94,8 +94,8 @@ describe("Setup", function () {
     const text = fs.readFileSync(keybindingsPath, "utf8");
     assert.deepStrictEqual(parse(text), [
       { key: "cmd+s", command: "mine" },
-      { command: "quickk.editor", key: "ctrl+k", mac: "cmd+k", when: "editorTextFocus && !terminalFocus" },
-      { command: "quickk.terminal", key: "ctrl+k", mac: "cmd+k", when: "terminalFocus" },
+      { command: "quickk.editor", key: process.platform === "darwin" ? "cmd+k" : "ctrl+k", when: "editorTextFocus && !terminalFocus" },
+      { command: "quickk.terminal", key: process.platform === "darwin" ? "cmd+k" : "ctrl+k", when: "terminalFocus" },
     ]);
     assert.ok(text.startsWith("// mine\n"), "comments are kept");
     assert.strictEqual(text.indexOf(`{ "key": "cmd+s", "command": "mine" }`), original.indexOf(`{ "key": "cmd+s", "command": "mine" }`));
