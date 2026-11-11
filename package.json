@@ -157,5 +157,8 @@
     "esbuild": "^0.24.0",
     "mocha": "^10.7.0",
     "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
   }
 }
