@@ -3,6 +3,7 @@ import { clearApiKey, promptForApiKey } from "./config";
 import { ProposalCodeLensProvider } from "./editor/codeLens";
 import { EditSessionManager } from "./editor/editSession";
 import { DebugInfo, EditorCommandArgs, EditorController, WidgetMessage } from "./editor/editorCommand";
+import { registerSetup } from "./setup/setup";
 import { runTerminalCommand, TerminalCommandArgs } from "./terminal/terminalController";
 import { isInsetAvailable } from "./ui/inlinePrompt";
 
@@ -42,7 +43,8 @@ export function activate(context: vscode.ExtensionContext): QuickKApi {
         void vscode.window.showInformationMessage("QuickK: API key saved.");
       }
     }),
-    vscode.commands.registerCommand("quickk.clearApiKey", () => clearApiKey(context.secrets))
+    vscode.commands.registerCommand("quickk.clearApiKey", () => clearApiKey(context.secrets)),
+    registerSetup(context)
   );
 
   return {

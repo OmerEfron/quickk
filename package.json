@@ -13,7 +13,9 @@
     "Other"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "enabledApiProposals": [
     "editorInsets"
   ],
@@ -52,6 +54,10 @@
       {
         "command": "quickk.clearApiKey",
         "title": "QuickK: Clear API Key"
+      },
+      {
+        "command": "quickk.setUp",
+        "title": "QuickK: Set Up"
       }
     ],
     "keybindings": [

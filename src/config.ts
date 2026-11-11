@@ -63,8 +63,18 @@ export async function promptForApiKey(secrets: vscode.SecretStorage): Promise<st
   if (!key) {
     return undefined;
   }
-  await secrets.store(SECRET_KEY, key);
+  await storeApiKey(secrets, key);
   return key;
+}
+
+export function storeApiKey(secrets: vscode.SecretStorage, key: string): Thenable<void> {
+  return secrets.store(SECRET_KEY, key);
+}
+
+/** True when no key is needed: one is stored or the base URL is local. */
+export async function apiKeyReady(secrets: vscode.SecretStorage): Promise<boolean> {
+  const baseUrl = vscode.workspace.getConfiguration("quickk").get<string>("baseUrl", "https://api.openai.com/v1");
+  return isLocalUrl(baseUrl) || Boolean(await secrets.get(SECRET_KEY));
 }
 
 export async function clearApiKey(secrets: vscode.SecretStorage): Promise<void> {
