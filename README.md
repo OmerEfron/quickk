@@ -8,7 +8,7 @@ Select something, press `Cmd+K`, say what you want, and review the result where 
 
 1. Download the latest `quickk-X.Y.Z.vsix` from [GitHub Releases](https://github.com/OmerEfron/cmd-k/releases).
 2. In VS Code or Cursor, run **Extensions: Install from VSIX...** and pick the file.
-3. Click **Set up** in the "Set up QuickK" notification. You can run **QuickK: Set Up** from the command palette at any time.
+3. Click **Set up** in the "Set up QuickK" notification. You can run **QuickK: Set Up** from the command palette at any time. When Setup turns on the inline box, click **Restart now**. If the box does not show up after that, quit Cursor / VS Code fully and open it again.
 4. Select some code and press `Cmd+K` (`Ctrl+K` on Windows/Linux).
 
 ## What it does
@@ -22,7 +22,7 @@ Select something, press `Cmd+K`, say what you want, and review the result where 
 
 ## The input box above the code
 
-QuickK shows a small input box **above the code**, inside the editor (like the old Cursor). It uses the VS Code proposed API `editorInsets`. This API is not allowed for extensions from the Marketplace, so you need to turn it on for QuickK once. See [Manual setup](#manual-setup).
+QuickK shows a small input box **above the code**, inside the editor (like the old Cursor). It uses the VS Code proposed API `editorInsets`. This API is not allowed for extensions from the Marketplace, so it must be turned on for QuickK once. **QuickK: Set Up** does this for you. If you skipped Setup, see [Manual setup](#manual-setup).
 
 Without it, QuickK uses a Quick Input box at the top of the window, and Accept / Reject links (CodeLens) above the change. Everything works, but there is no inline box, and no question mode.
 
@@ -43,7 +43,7 @@ Without it, QuickK uses a Quick Input box at the top of the window, and Accept /
 **QuickK: Set Up** does the steps it can for you. If you skipped it, or want to change something by hand:
 
 1. Run **QuickK: Set API Key**. The key is stored in VS Code SecretStorage.
-2. Turn on the inline box (once):
+2. Turn on the inline box (once, only if you skipped Setup):
    - Open the command palette and run **Preferences: Configure Runtime Arguments**. This opens `argv.json`.
    - Add this line, then restart Cursor / VS Code completely:
 
