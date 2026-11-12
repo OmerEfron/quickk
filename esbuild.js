@@ -1,9 +1,28 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const watch = process.argv.includes("--watch");
 
+async function bundle(options) {
+  const ctx = await esbuild.context(options);
+  if (watch) {
+    await ctx.watch();
+  } else {
+    await ctx.rebuild();
+    await ctx.dispose();
+  }
+}
+
 async function main() {
-  const ctx = await esbuild.context({
+  const pluginDir = path.join("node_modules", "quickk-shadow");
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(pluginDir, "package.json"),
+    JSON.stringify({ name: "quickk-shadow", version: "0.0.0", private: true, main: "index.js" }, null, 2) + "\n"
+  );
+
+  await bundle({
     entryPoints: ["src/extension.ts"],
     bundle: true,
     format: "cjs",
@@ -17,12 +36,17 @@ async function main() {
     minify: !watch,
     logLevel: "info",
   });
-  if (watch) {
-    await ctx.watch();
-  } else {
-    await ctx.rebuild();
-    await ctx.dispose();
-  }
+  // The TypeScript server loads this file from node_modules. It is not part of dist/extension.js.
+  await bundle({
+    entryPoints: ["src/tsPlugin.ts"],
+    bundle: true,
+    format: "cjs",
+    platform: "node",
+    target: "node18",
+    outfile: path.join(pluginDir, "index.js"),
+    sourcemap: true,
+    logLevel: "info",
+  });
 }
 
 main().catch((error) => {

@@ -6,6 +6,8 @@ src/**
 test/**
 out/**
 node_modules/**
+!node_modules/quickk-shadow/
+!node_modules/quickk-shadow/**
 PRD.md
 tsconfig.json
 esbuild.js

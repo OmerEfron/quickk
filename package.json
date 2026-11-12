@@ -98,6 +98,12 @@
         "when": "editorTextFocus && quickk.generating"
       }
     ],
+    "typescriptServerPlugins": [
+      {
+        "name": "quickk-shadow",
+        "enableForWorkspaceTypeScriptVersions": true
+      }
+    ],
     "configuration": {
       "title": "QuickK",
       "properties": {

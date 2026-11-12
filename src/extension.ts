@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { clearApiKey, promptForApiKey } from "./config";
+import { registerCheckerShadow } from "./editor/checkerShadow";
 import { ProposalCodeLensProvider } from "./editor/codeLens";
 import { EditSessionManager } from "./editor/editSession";
 import { DebugInfo, EditorCommandArgs, EditorController, WidgetMessage } from "./editor/editorCommand";
@@ -26,6 +27,7 @@ export function activate(context: vscode.ExtensionContext): QuickKApi {
 
   context.subscriptions.push(
     sessions,
+    registerCheckerShadow(sessions),
     controller,
     codeLens,
     controller.onDidChangeWidgets(() => codeLens.refresh()),

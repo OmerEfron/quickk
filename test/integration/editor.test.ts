@@ -34,6 +34,35 @@ function cursorAt(editor: vscode.TextEditor, line: number) {
 const text = (doc: vscode.TextDocument) => doc.getText().replace(/\r\n/g, "\n");
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function waitForDiagnostics(
+  uri: vscode.Uri,
+  ready: (items: readonly vscode.Diagnostic[]) => boolean,
+  timeoutMs = 20000
+): Promise<readonly vscode.Diagnostic[]> {
+  const read = () => vscode.languages.getDiagnostics(uri);
+  if (ready(read())) {
+    return Promise.resolve(read());
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      sub.dispose();
+      const items = read();
+      reject(new Error(`diagnostics: ${items.map((item) => item.message).join(" | ") || "(none)"}`));
+    }, timeoutMs);
+    const sub = vscode.languages.onDidChangeDiagnostics((event) => {
+      if (!event.uris.some((item) => item.toString() === uri.toString())) {
+        return;
+      }
+      const items = read();
+      if (ready(items)) {
+        clearTimeout(timer);
+        sub.dispose();
+        resolve(items);
+      }
+    });
+  });
+}
+
 describe("editor flow", function () {
   before(async () => {
     const extension = vscode.extensions.getExtension("quickk.quickk");
@@ -266,6 +295,40 @@ describe("editor flow", function () {
     await vscode.commands.executeCommand("quickk.accept");
     await vscode.commands.executeCommand("quickk.reject");
     assert.strictEqual(text(doc), afterEdit, "accept and reject must not change the file after the review ended");
+  });
+
+  it("does not report a redeclare error while both copies are on screen", async function () {
+    this.timeout(60000);
+    server.respond = () => ({ content: '```ts\nconst example: number = "no";\n```' });
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(folder, "the test workspace is missing");
+    const file = vscode.Uri.joinPath(folder.uri, "redeclare.ts");
+    await vscode.workspace.fs.writeFile(file, Buffer.from("const example = (a: number) => {\n    a++;\n};\n"));
+    const doc = await vscode.workspace.openTextDocument(file);
+    const editor = await vscode.window.showTextDocument(doc);
+    selectLines(editor, 0, 2);
+
+    await vscode.commands.executeCommand("quickk.editor", { instruction: "make it a number" });
+
+    const body = text(doc);
+    assert.ok(body.includes("a++;"), "the old copy stays in the file");
+    assert.ok(body.includes('const example: number = "no";'), "the new copy is in the file");
+    assert.ok(api.isPending(doc.uri));
+
+    const diags = await waitForDiagnostics(
+      doc.uri,
+      (items) =>
+        items.some((item) => item.message.includes("not assignable")) &&
+        !items.some((item) => item.message.includes("Cannot redeclare block-scoped variable"))
+    );
+    assert.ok(diags.some((item) => item.message.includes("not assignable")));
+    assert.deepStrictEqual(
+      diags.filter((item) => item.message.includes("Cannot redeclare block-scoped variable")),
+      []
+    );
+
+    await vscode.commands.executeCommand("quickk.accept");
+    assert.ok(!text(doc).includes("a++;"));
   });
 
   it("undo goes back to the original code", async () => {

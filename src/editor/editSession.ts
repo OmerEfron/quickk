@@ -219,8 +219,13 @@ export class EditSessionManager implements vscode.Disposable {
       }
     });
     if (ok) {
+      // The first copy is when both the old lines and the new lines are in the file.
+      const showedCopy = session.written === undefined;
       session.written = lines;
       this.refreshDecorations();
+      if (showedCopy) {
+        this.afterChange(session.uri, session);
+      }
     }
     return ok;
   }
