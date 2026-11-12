@@ -130,6 +130,39 @@ describe("complete", () => {
     assert.strictEqual(seenBody.model, "m");
   });
 
+  it("refuses a remote http:// URL and sends nothing", async () => {
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return streamResponse([sse(chunk("x", "stop"), "[DONE]")]);
+    }) as unknown as typeof fetch;
+    await assert.rejects(
+      () => complete({ ...settings, baseUrl: "http://example.test/v1" }, [], { fetchImpl }),
+      (error: any) => {
+        assert.ok(error instanceof ProviderError);
+        assert.strictEqual(error.kind, "insecure");
+        assert.ok(!error.message.includes("sk-secret"));
+        return true;
+      }
+    );
+    assert.strictEqual(called, false);
+  });
+
+  it("still allows http:// for a server on this computer", async () => {
+    const fetchImpl = (async () => streamResponse([sse(chunk("ok", "stop"), "[DONE]")])) as unknown as typeof fetch;
+    for (const baseUrl of ["http://localhost:11434/v1", "http://127.0.0.1:1234/v1", "http://[::1]:1234/v1"]) {
+      const result = await complete({ ...settings, baseUrl }, [], { fetchImpl });
+      assert.strictEqual(result.text, "ok");
+    }
+  });
+
+  it("does not treat a lookalike host as local", async () => {
+    const fetchImpl = (async () => streamResponse([])) as unknown as typeof fetch;
+    for (const baseUrl of ["http://localhost.evil.test/v1", "http://127.0.0.1.evil.test/v1", "not a url"]) {
+      await assert.rejects(() => complete({ ...settings, baseUrl }, [], { fetchImpl }), (e: any) => e.kind === "insecure");
+    }
+  });
+
   it("reports the length finish reason", async () => {
     const fetchImpl = (async () => streamResponse([sse(chunk("abc", "length"), "[DONE]")])) as unknown as typeof fetch;
     const result = await complete(settings, [], { fetchImpl });

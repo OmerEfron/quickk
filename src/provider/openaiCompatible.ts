@@ -16,7 +16,7 @@ export interface ChatMessage {
   content: string;
 }
 
-export type ProviderErrorKind = "http" | "timeout" | "network" | "truncated" | "empty" | "format";
+export type ProviderErrorKind = "http" | "timeout" | "network" | "truncated" | "empty" | "format" | "insecure";
 
 export class ProviderError extends Error {
   constructor(
@@ -142,11 +142,26 @@ export function isLocalUrl(baseUrl: string): boolean {
   }
 }
 
+/** The key and the code only travel over https, or stay on this computer. */
+function isSecureUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).protocol === "https:" || isLocalUrl(baseUrl);
+  } catch {
+    return false;
+  }
+}
+
 export async function complete(
   settings: ProviderSettings,
   messages: ChatMessage[],
   options: CompleteOptions = {}
 ): Promise<CompletionResult> {
+  if (!isSecureUrl(settings.baseUrl)) {
+    throw new ProviderError(
+      "quickk.baseUrl must use https:// (http:// is only allowed for localhost). Nothing was sent.",
+      "insecure"
+    );
+  }
   const doFetch = options.fetchImpl ?? fetch;
   const controller = new AbortController();
   let timedOut = false;
