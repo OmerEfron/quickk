@@ -104,6 +104,7 @@
         "quickk.baseUrl": {
           "type": "string",
           "default": "https://api.openai.com/v1",
+          "scope": "application",
           "markdownDescription": "Base URL of an OpenAI-compatible API. QuickK calls `<baseUrl>/chat/completions`."
         },
         "quickk.model": {
