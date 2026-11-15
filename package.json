@@ -69,6 +69,10 @@
       {
         "command": "quickk.showUsage",
         "title": "QuickK: Show Usage"
+      },
+      {
+        "command": "quickk.clearUsage",
+        "title": "QuickK: Clear Usage"
       }
     ],
     "keybindings": [

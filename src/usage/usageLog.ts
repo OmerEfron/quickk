@@ -27,6 +27,16 @@ class UsageLog {
 
   add(entry: UsageEntry): void {
     this.entries = [...this.entries, entry];
+    this.queueWrite();
+  }
+
+  /** Empties the memory list and queues the write on the same chain as add(), so the watch cannot undo it. */
+  clear(): void {
+    this.entries = [];
+    this.queueWrite();
+  }
+
+  private queueWrite(): void {
     this.saving = this.saving.then(() => this.write()).catch(() => undefined);
   }
 
@@ -62,6 +72,16 @@ export function readUsageLog(state: vscode.Memento): UsageEntry[] {
 /** Adds an entry to the memory list at once. Storing it happens in the background. */
 export function saveUsageEntry(state: vscode.Memento, entry: UsageEntry): void {
   logOf(state).add(entry);
+}
+
+/** Registers QuickK: Clear Usage. It asks first and changes nothing if the user dismisses the prompt. */
+export function registerClearUsage(state: vscode.Memento): vscode.Disposable {
+  return vscode.commands.registerCommand("quickk.clearUsage", async () => {
+    const choice = await vscode.window.showWarningMessage("Delete the whole QuickK usage log?", { modal: true }, "Delete");
+    if (choice === "Delete") {
+      logOf(state).clear();
+    }
+  });
 }
 
 /**
