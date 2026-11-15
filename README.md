@@ -124,6 +124,8 @@ On Windows and Linux, the terminal may send `Ctrl+K` to the shell (it is "kill l
 
 ## Development
 
+Pull requests from forks may need a maintainer to approve GitHub Actions before checks run. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Needs Node 20 or newer.
 
 ```sh
