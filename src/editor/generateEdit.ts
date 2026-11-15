@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { readContextConfig, readProviderSettings } from "../config";
 import { buildEditorContext } from "../context/editorContext";
 import { buildEditorMessages, buildFollowUpMessages, QuestionTurn } from "../prompts";
-import { CancelledError, complete, ProviderError } from "../provider/openaiCompatible";
+import { CancelledError, complete, NO_USAGE, ProviderError, TokenUsage } from "../provider/openaiCompatible";
 import { UserError } from "../ui/errors";
 import { saveUsageEntry } from "../usage/usageLog";
 import { commonIndent, reindent } from "../util/reindent";
@@ -164,6 +164,8 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
   let lastFlush = 0;
   // complete() drops partial text when it throws, so we note here that some text came back.
   let textArrived = false;
+  // Stays unknown when the call throws: complete() does not hand back counts then.
+  let usage: TokenUsage = NO_USAGE;
 
   // Writes the lines that are complete so far. The last line is held back (see writableLines).
   const flush = async (): Promise<void> => {
@@ -205,6 +207,7 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
         }
       },
     });
+    usage = result.usage;
     await flushing;
 
     if (!stillMine()) {
@@ -263,8 +266,9 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
         model: settings.model,
         apiAddress: settings.baseUrl,
         taskKind: promptMode,
-        inputTokens: null,
-        outputTokens: null,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
         estimatedCost: null,
       });
     }
