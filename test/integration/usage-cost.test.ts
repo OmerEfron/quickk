@@ -142,4 +142,19 @@ describe("usage view estimated cost", function () {
     // 0.0021 + 0.00012 = 0.00222
     assertSums(view, "Estimated cost", "$0.0022");
   });
+
+  it("prices a listed model with no cached price at the input price, whatever is cached", async () => {
+    // gpt-5-pro: 1000 x 15 + 100 x 120 = 27,000 millionths of a dollar.
+    const { line, view } = await newLine("gpt-5-pro", () =>
+      pricedEdit("gpt-5-pro", {
+        prompt_tokens: 1000,
+        completion_tokens: 100,
+        prompt_tokens_details: { cached_tokens: 400 },
+      })
+    );
+
+    assert.match(line, / {2}input 1000 {2}output 100 {2}\$0\.0270$/);
+    // 0.00222 + 0.027 = 0.02922
+    assertSums(view, "Estimated cost", "$0.0292");
+  });
 });
