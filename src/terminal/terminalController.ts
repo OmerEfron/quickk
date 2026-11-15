@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { readProviderSettings } from "../config";
 import { readTerminalContext } from "../context/terminalContext";
 import { buildTerminalMessages } from "../prompts";
-import { complete, ProviderError } from "../provider/openaiCompatible";
+import { complete, NO_USAGE, ProviderError, TokenUsage } from "../provider/openaiCompatible";
 import { focusActivePrompt, runPrompt } from "../ui/prompt";
 import { saveUsageEntry } from "../usage/usageLog";
 import { CommandFormatError, normalizeCommand } from "../util/command";
@@ -55,6 +55,7 @@ async function generateCommand(
 
   // complete() drops partial text when it throws, so we note here that some text came back.
   let textArrived = false;
+  let usage: TokenUsage = NO_USAGE;
   try {
     const messages = buildTerminalMessages(instruction, readTerminalContext(terminal));
     progress("QuickK: waiting for the model...");
@@ -65,6 +66,7 @@ async function generateCommand(
         progress(`QuickK: generating... (${total} characters)`);
       },
     });
+    usage = result.usage;
     if (signal.aborted) {
       return;
     }
@@ -100,8 +102,9 @@ async function generateCommand(
         model: settings.model,
         apiAddress: settings.baseUrl,
         taskKind: "terminal",
-        inputTokens: null,
-        outputTokens: null,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
         estimatedCost: null,
       });
     }

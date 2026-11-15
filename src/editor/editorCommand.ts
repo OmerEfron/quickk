@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { readContextConfig, readProviderSettings } from "../config";
 import { buildEditorContext } from "../context/editorContext";
 import { buildQuestionMessages, QuestionTurn } from "../prompts";
-import { complete, ProviderSettings } from "../provider/openaiCompatible";
+import { complete, NO_USAGE, ProviderSettings, TokenUsage } from "../provider/openaiCompatible";
 import { describeError, isCancellation } from "../ui/errors";
 import {
   InlinePromptWidget,
@@ -409,6 +409,7 @@ export class EditorController implements vscode.Disposable {
     let settings: ProviderSettings | undefined;
     // complete() drops partial text when it throws, so we note here that some text came back.
     let textArrived = false;
+    let usage: TokenUsage = NO_USAGE;
     try {
       settings = await readProviderSettings(this.extension.secrets);
       if (!settings || controller.signal.aborted) {
@@ -450,6 +451,7 @@ export class EditorController implements vscode.Disposable {
           }
         },
       });
+      usage = result.usage;
       runner.answer = result.text;
       runner.conversation.push({ question, answer: result.text });
       this.setPhase(runner, "answered", { inputValue: "", focus: true });
@@ -471,8 +473,9 @@ export class EditorController implements vscode.Disposable {
           model: settings.model,
           apiAddress: settings.baseUrl,
           taskKind: "question",
-          inputTokens: null,
-          outputTokens: null,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cachedInputTokens: usage.cachedInputTokens,
           estimatedCost: null,
         });
       }
