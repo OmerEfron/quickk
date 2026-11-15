@@ -2,8 +2,9 @@ import * as vscode from "vscode";
 import { readProviderSettings } from "../config";
 import { readTerminalContext } from "../context/terminalContext";
 import { buildTerminalMessages } from "../prompts";
-import { complete, ProviderError } from "../provider/openaiCompatible";
+import { complete, NO_USAGE, ProviderError, TokenUsage } from "../provider/openaiCompatible";
 import { focusActivePrompt, runPrompt } from "../ui/prompt";
+import { saveUsageEntry } from "../usage/usageLog";
 import { CommandFormatError, normalizeCommand } from "../util/command";
 import { findDestructiveReason } from "../util/destructive";
 
@@ -52,38 +53,62 @@ async function generateCommand(
     return;
   }
 
-  const messages = buildTerminalMessages(instruction, readTerminalContext(terminal));
-  progress("QuickK: waiting for the model...");
-  const result = await complete(settings, messages, {
-    signal,
-    onDelta: (_delta, total) => progress(`QuickK: generating... (${total} characters)`),
-  });
-  if (signal.aborted) {
-    return;
-  }
-  if (result.finishReason === "length") {
-    throw new ProviderError(
-      "The answer was cut off because it reached the token limit (quickk.maxTokens).",
-      "truncated"
-    );
-  }
-
-  let command: string;
+  // complete() drops partial text when it throws, so we note here that some text came back.
+  let textArrived = false;
+  let usage: TokenUsage = NO_USAGE;
   try {
-    command = normalizeCommand(result.text);
-  } catch (error) {
-    if (error instanceof CommandFormatError) {
-      throw new ProviderError(error.message, "format");
+    const messages = buildTerminalMessages(instruction, readTerminalContext(terminal));
+    progress("QuickK: waiting for the model...");
+    const result = await complete(settings, messages, {
+      signal,
+      onDelta: (_delta, total) => {
+        textArrived = true;
+        progress(`QuickK: generating... (${total} characters)`);
+      },
+    });
+    usage = result.usage;
+    if (signal.aborted) {
+      return;
     }
-    throw error;
-  }
+    if (result.finishReason === "length") {
+      throw new ProviderError(
+        "The answer was cut off because it reached the token limit (quickk.maxTokens).",
+        "truncated"
+      );
+    }
 
-  const danger = findDestructiveReason(command);
-  if (danger && !(await confirmDangerous(command, danger))) {
-    return;
-  }
+    let command: string;
+    try {
+      command = normalizeCommand(result.text);
+    } catch (error) {
+      if (error instanceof CommandFormatError) {
+        throw new ProviderError(error.message, "format");
+      }
+      throw error;
+    }
 
-  insertCommand(terminal, command);
+    const danger = findDestructiveReason(command);
+    if (danger && !(await confirmDangerous(command, danger))) {
+      return;
+    }
+
+    insertCommand(terminal, command);
+  } finally {
+    // One usage entry when the call ends, and only if text came back. This also holds when the user
+    // then declines a dangerous command.
+    if (textArrived) {
+      saveUsageEntry(extension.globalState, {
+        time: Date.now(),
+        model: settings.model,
+        apiAddress: settings.baseUrl,
+        taskKind: "terminal",
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        estimatedCost: null,
+      });
+    }
+  }
 }
 /**
  * Prompts the user for confirmation if the command may be destructive.
