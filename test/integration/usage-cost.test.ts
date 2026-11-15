@@ -128,4 +128,18 @@ describe("usage view estimated cost", function () {
     assertSums(view, "Estimated cost", "$0.0021");
     assertSums(view, "Entries with no estimated cost", "0");
   });
+
+  it("prices cached input at the cached price: 1,000 input, 400 of them cached, no output show $0.0001", async () => {
+    const { line, view } = await newLine("gpt-4o-mini", () =>
+      pricedEdit("gpt-4o-mini", {
+        prompt_tokens: 1000,
+        completion_tokens: 0,
+        prompt_tokens_details: { cached_tokens: 400 },
+      })
+    );
+
+    assert.match(line, / {2}input 1000 {2}output 0 {2}\$0\.0001$/);
+    // 0.0021 + 0.00012 = 0.00222
+    assertSums(view, "Estimated cost", "$0.0022");
+  });
 });

@@ -11,7 +11,7 @@ interface Price {
 
 /** Standard chat prices, snapshot of 15 Nov 2026. */
 const PRICE_LIST: Record<string, Price> = {
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6, cachedInput: 0.075 },
 };
 
 export interface PricedCall {
@@ -31,5 +31,9 @@ export function estimateCost(call: PricedCall): number | null {
   if (!price || call.inputTokens === null || call.outputTokens === null) {
     return null;
   }
-  return (call.inputTokens * price.input + call.outputTokens * price.output) / 1_000_000;
+  // A cached split bills the cached part at the cached price. Without a split, or without a cached
+  // price, every input token uses the input price.
+  const cached = price.cachedInput === undefined ? 0 : (call.cachedInputTokens ?? 0);
+  const cachedPrice = price.cachedInput ?? 0;
+  return ((call.inputTokens - cached) * price.input + cached * cachedPrice + call.outputTokens * price.output) / 1_000_000;
 }
