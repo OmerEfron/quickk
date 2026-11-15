@@ -12,6 +12,16 @@ const CODE_REPLY = "```js\nconst a = 2;\n```";
 
 let server: MockServer;
 let api: QuickKApi;
+let terminal: vscode.Terminal | undefined;
+
+/** The terminal call needs an open terminal. It is made once and kept for the later terminal tests. */
+async function ensureTerminal(): Promise<void> {
+  if (!terminal) {
+    terminal = vscode.window.createTerminal({ name: "quickk-usage-test" });
+    terminal.show();
+    await sleep(1500);
+  }
+}
 
 /** Runs QuickK: Show Usage and returns the text of the tab it focused. */
 async function showUsage(): Promise<string> {
@@ -41,6 +51,8 @@ async function openDoc(content = ORIGINAL): Promise<{ doc: vscode.TextDocument; 
   return { doc, editor };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 describe("usage entries for every kind of call", function () {
   this.timeout(30000);
 
@@ -61,6 +73,7 @@ describe("usage entries for every kind of call", function () {
   });
 
   after(async () => {
+    terminal?.dispose();
     await vscode.workspace.getConfiguration("quickk").update("model", undefined, vscode.ConfigurationTarget.Global);
     await server.close();
   });
@@ -77,6 +90,21 @@ describe("usage entries for every kind of call", function () {
     assert.match(
       lines[0],
       /^\d{4}-\d\d-\d\d \d\d:\d\d {2}question {2}question-model {2}input unknown {2}output unknown {2}unknown$/
+    );
+  });
+
+  it("lists a terminal command as task kind terminal once the command text came back", async () => {
+    await useModel("terminal-model");
+    await ensureTerminal();
+    server.respond = () => ({ content: "echo hi" });
+
+    await vscode.commands.executeCommand("quickk.terminal", { instruction: "say hi" });
+
+    const lines = await callsOf("terminal-model");
+    assert.strictEqual(lines.length, 1);
+    assert.match(
+      lines[0],
+      /^\d{4}-\d\d-\d\d \d\d:\d\d {2}terminal {2}terminal-model {2}input unknown {2}output unknown {2}unknown$/
     );
   });
 });
