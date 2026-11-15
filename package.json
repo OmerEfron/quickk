@@ -65,6 +65,10 @@
       {
         "command": "quickk.setUp",
         "title": "QuickK: Set Up"
+      },
+      {
+        "command": "quickk.showUsage",
+        "title": "QuickK: Show Usage"
       }
     ],
     "keybindings": [

@@ -7,6 +7,7 @@ import { DebugInfo, EditorCommandArgs, EditorController, WidgetMessage } from ".
 import { registerSetup } from "./setup/setup";
 import { runTerminalCommand, TerminalCommandArgs } from "./terminal/terminalController";
 import { isInsetAvailable } from "./ui/inlinePrompt";
+import { registerUsageView } from "./usage/usageLog";
 
 /** Small API. The integration tests use it. */
 export interface QuickKApi {
@@ -46,7 +47,8 @@ export function activate(context: vscode.ExtensionContext): QuickKApi {
       }
     }),
     vscode.commands.registerCommand("quickk.clearApiKey", () => clearApiKey(context.secrets)),
-    registerSetup(context)
+    registerSetup(context),
+    registerUsageView(context.globalState)
   );
 
   return {
