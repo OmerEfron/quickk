@@ -47,12 +47,30 @@ function callLines(viewText: string): string[] {
   return viewText.split("\nCalls\n")[1].split("\n").filter((line) => line !== "");
 }
 
-/** Runs an edit of one selected line against the mock server. */
-async function editSelection(instruction: string): Promise<vscode.TextDocument> {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function until(check: () => boolean, what: string, timeoutMs = 4000): Promise<void> {
+  const start = Date.now();
+  while (!check()) {
+    if (Date.now() - start > timeoutMs) {
+      assert.fail(`Timed out waiting for: ${what}`);
+    }
+    await sleep(20);
+  }
+}
+
+/** Starts an edit of one selected line against the mock server. */
+async function startEdit(instruction: string): Promise<{ doc: vscode.TextDocument; running: Thenable<unknown> }> {
   const doc = await vscode.workspace.openTextDocument({ content: "const a = 1;\n", language: "javascript" });
   const editor = await vscode.window.showTextDocument(doc);
   editor.selection = new vscode.Selection(0, 0, 0, doc.lineAt(0).text.length);
-  await vscode.commands.executeCommand("quickk.editor", { instruction });
+  return { doc, running: vscode.commands.executeCommand("quickk.editor", { instruction }) };
+}
+
+/** Runs an edit until its call has ended. */
+async function editSelection(instruction: string): Promise<vscode.TextDocument> {
+  const { doc, running } = await startEdit(instruction);
+  await running;
   return doc;
 }
 
@@ -63,6 +81,10 @@ describe("usage view", function () {
     await extension.activate();
     server = await startMockServer(() => ({ content: "```js\nconst a = 2;\n```" }));
     await vscode.workspace.getConfiguration("quickk").update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
+  });
+
+  beforeEach(() => {
+    server.respond = () => ({ content: "```js\nconst a = 2;\n```" });
   });
 
   afterEach(async () => {
@@ -82,5 +104,37 @@ describe("usage view", function () {
     const lines = callLines(await showUsage());
     assert.strictEqual(lines.length, 1);
     assert.match(lines[0], /^\d{4}-\d\d-\d\d \d\d:\d\d {2}edit {2}gpt-4o-mini {2}input unknown {2}output unknown {2}unknown$/);
+  });
+
+  it("saves one entry when the user stops a call after some text came back", async () => {
+    const settings = vscode.workspace.getConfiguration("quickk");
+    await settings.update("model", "stopped-model", vscode.ConfigurationTarget.Global);
+    server.respond = () => ({ chunks: ["```js\nconst a = 2;\nconst b = 3;\n", "const c = 4;\n```"], chunkDelayMs: 1200 });
+    const before = callLines(await showUsage()).length;
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+
+    const { doc, running } = await startEdit("Stop me.");
+    await until(() => doc.getText().includes("const b = 3;"), "the first lines to appear");
+    await vscode.commands.executeCommand("quickk.cancel");
+    await running;
+    await settings.update("model", undefined, vscode.ConfigurationTarget.Global);
+
+    const lines = callLines(await showUsage());
+    assert.strictEqual(lines.length, before + 1);
+    assert.match(lines[0], / {2}edit {2}stopped-model {2}/);
+  });
+
+  it("lists the newest call first", async () => {
+    const settings = vscode.workspace.getConfiguration("quickk");
+    const before = callLines(await showUsage()).length;
+    await settings.update("model", "older-model", vscode.ConfigurationTarget.Global);
+    await editSelection("First.");
+    await settings.update("model", "newer-model", vscode.ConfigurationTarget.Global);
+    await editSelection("Second.");
+    await settings.update("model", undefined, vscode.ConfigurationTarget.Global);
+    const lines = callLines(await showUsage());
+    assert.strictEqual(lines.length, before + 2);
+    assert.match(lines[0], / {2}newer-model {2}/);
+    assert.match(lines[1], / {2}older-model {2}/);
   });
 });
