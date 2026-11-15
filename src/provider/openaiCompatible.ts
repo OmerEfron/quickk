@@ -142,6 +142,25 @@ export function buildUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, "") + "/chat/completions";
 }
 
+export const OPENAI_API_ADDRESS = "https://api.openai.com/v1";
+
+/** True when two API addresses are the same once surrounding space and trailing slashes are removed. */
+export function sameApiAddress(a: string, b: string): boolean {
+  const clean = (address: string) => address.trim().replace(/\/+$/, "");
+  return clean(a) === clean(b);
+}
+
+/**
+ * Test-only switch: when this variable is set, requests meant for the OpenAI address go to that URL
+ * instead. It is off in normal use and no setting turns it on.
+ */
+const TEST_REDIRECT = "QUICKK_TEST_OPENAI_REDIRECT";
+
+function requestBase(baseUrl: string): string {
+  const redirect = process.env[TEST_REDIRECT];
+  return redirect && sameApiAddress(baseUrl, OPENAI_API_ADDRESS) ? redirect : baseUrl;
+}
+
 export function buildRequestBody(settings: ProviderSettings, messages: ChatMessage[]): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: settings.model,
@@ -213,7 +232,7 @@ export async function complete(
       headers.Authorization = `Bearer ${settings.apiKey}`;
     }
 
-    const response = await doFetch(buildUrl(settings.baseUrl), {
+    const response = await doFetch(buildUrl(requestBase(settings.baseUrl)), {
       method: "POST",
       headers,
       body: JSON.stringify(buildRequestBody(settings, messages)),

@@ -32,13 +32,19 @@ function tokens(count: number | null): string {
   return count === null ? "unknown" : String(count);
 }
 
+/** A dollar amount with a leading $ and four digits, rounding half away from zero. */
+function dollars(amount: number): string {
+  return `$${(Math.round(amount * 10000) / 10000).toFixed(4)}`;
+}
+
 function block(title: string, entries: UsageEntry[]): string[] {
   const sum = (pick: (entry: UsageEntry) => number | null) =>
     entries.reduce((total, entry) => total + (pick(entry) ?? 0), 0);
+  // The sum adds the full stored figures. With no priced entry it is unknown, not $0.0000.
+  const priced = entries.flatMap((entry) => (entry.estimatedCost === null ? [] : [entry.estimatedCost]));
   return [
     title,
-    // No price list yet, so no entry has an estimated cost and the sum is unknown.
-    "Estimated cost: unknown",
+    `Estimated cost: ${priced.length === 0 ? "unknown" : dollars(priced.reduce((total, cost) => total + cost, 0))}`,
     `Input tokens: ${sum((entry) => entry.inputTokens)}`,
     `Output tokens: ${sum((entry) => entry.outputTokens)}`,
     `Entries with no estimated cost: ${entries.filter((entry) => entry.estimatedCost === null).length}`,
@@ -47,7 +53,7 @@ function block(title: string, entries: UsageEntry[]): string[] {
 }
 
 function line(entry: UsageEntry): string {
-  const cost = entry.estimatedCost === null ? "unknown" : String(entry.estimatedCost);
+  const cost = entry.estimatedCost === null ? "unknown" : dollars(entry.estimatedCost);
   return [
     localTime(entry.time),
     entry.taskKind,

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { estimateCost } from "./pricing";
 import { renderUsageView, UsageEntry } from "./usageView";
 
 const LOG_KEY = "quickk.usageLog";
@@ -59,9 +60,12 @@ export function readUsageLog(state: vscode.Memento): UsageEntry[] {
   return logOf(state).entries;
 }
 
-/** Adds an entry to the memory list at once. Storing it happens in the background. */
+/**
+ * Adds an entry to the memory list at once. Storing it happens in the background. The estimated cost
+ * is worked out here, once, so every caller gets the same rule and the figure never changes later.
+ */
 export function saveUsageEntry(state: vscode.Memento, entry: UsageEntry): void {
-  logOf(state).add(entry);
+  logOf(state).add({ ...entry, estimatedCost: estimateCost(entry) });
 }
 
 /**
