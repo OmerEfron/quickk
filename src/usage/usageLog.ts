@@ -12,6 +12,8 @@ const VIEW_URI = vscode.Uri.from({ scheme: SCHEME, path: "/QuickK Usage" });
 // we watch the cache for a short time and write the memory list again if the cache differs.
 const WATCH_MS = 500;
 const POLL_MS = 20;
+// The longest Show Usage waits for an open copy to take the new text.
+const SHOW_WAIT_MS = 1000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sameEntries = (a: UsageEntry[], b: UsageEntry[]) => JSON.stringify(a) === JSON.stringify(b);
@@ -106,11 +108,17 @@ export function registerUsageView(state: vscode.Memento): vscode.Disposable {
     const doc = await vscode.workspace.openTextDocument(VIEW_URI);
     if (doc.getText() !== shown) {
       // A copy that stayed in memory after its tab closed gets its new text a moment later, in steps.
+      // If the text never matches, stop waiting after a short time and show the tab anyway.
       await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer);
+          watch.dispose();
+          resolve();
+        };
+        const timer = setTimeout(finish, SHOW_WAIT_MS);
         const watch = vscode.workspace.onDidChangeTextDocument((event) => {
           if (event.document === doc && doc.getText() === shown) {
-            watch.dispose();
-            resolve();
+            finish();
           }
         });
       });

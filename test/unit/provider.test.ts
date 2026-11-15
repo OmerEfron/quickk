@@ -256,4 +256,18 @@ describe("test-only redirect of the OpenAI address", () => {
     assert.strictEqual(await urlSentFor(` ${OPENAI}/ `), "http://127.0.0.1:9999/v1/chat/completions");
     assert.strictEqual(await urlSentFor("https://example.test/v1"), "https://example.test/v1/chat/completions");
   });
+
+  it("uses a redirect only when it points to this computer", async () => {
+    for (const local of ["http://localhost:9999/v1", "http://127.0.0.1:9999/v1", "http://[::1]:9999/v1"]) {
+      process.env[SWITCH] = local;
+      assert.strictEqual(await urlSentFor(OPENAI), `${local}/chat/completions`);
+    }
+  });
+
+  it("ignores a redirect that does not point to this computer", async () => {
+    for (const remote of ["https://evil.example/v1", "http://192.168.0.5:9999/v1", "not a url"]) {
+      process.env[SWITCH] = remote;
+      assert.strictEqual(await urlSentFor(OPENAI), "https://api.openai.com/v1/chat/completions");
+    }
+  });
 });

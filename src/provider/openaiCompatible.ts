@@ -152,13 +152,14 @@ export function sameApiAddress(a: string, b: string): boolean {
 
 /**
  * Test-only switch: when this variable is set, requests meant for the OpenAI address go to that URL
- * instead. It is off in normal use and no setting turns it on.
+ * instead, but only when that URL points to this computer, so the API key never leaves it. Any other
+ * value is ignored. It is off in normal use and no setting turns it on.
  */
 const TEST_REDIRECT = "QUICKK_TEST_OPENAI_REDIRECT";
 
 function requestBase(baseUrl: string): string {
   const redirect = process.env[TEST_REDIRECT];
-  return redirect && sameApiAddress(baseUrl, OPENAI_API_ADDRESS) ? redirect : baseUrl;
+  return redirect && isLocalUrl(redirect) && sameApiAddress(baseUrl, OPENAI_API_ADDRESS) ? redirect : baseUrl;
 }
 
 export function buildRequestBody(settings: ProviderSettings, messages: ChatMessage[]): Record<string, unknown> {
