@@ -27,14 +27,15 @@ export function registerUsageView(state: vscode.Memento): vscode.Disposable {
     provideTextDocumentContent: () => text,
   });
   const command = vscode.commands.registerCommand("quickk.showUsage", async () => {
-    text = renderUsageView(readUsageLog(state), Date.now());
+    const shown = renderUsageView(readUsageLog(state), Date.now());
+    text = shown;
     changed.fire(VIEW_URI);
     const doc = await vscode.workspace.openTextDocument(VIEW_URI);
-    if (doc.getText() !== text) {
-      // A copy that stayed in memory after its tab closed gets its new text a moment later.
+    if (doc.getText() !== shown) {
+      // A copy that stayed in memory after its tab closed gets its new text a moment later, in steps.
       await new Promise<void>((resolve) => {
         const watch = vscode.workspace.onDidChangeTextDocument((event) => {
-          if (event.document === doc) {
+          if (event.document === doc && doc.getText() === shown) {
             watch.dispose();
             resolve();
           }
