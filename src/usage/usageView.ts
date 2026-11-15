@@ -12,6 +12,8 @@ export interface UsageEntry {
   /** null means unknown. */
   inputTokens: number | null;
   outputTokens: number | null;
+  /** Kept so a later ticket can price cached input. Not printed. null means unknown. */
+  cachedInputTokens: number | null;
   /** null means unknown. */
   estimatedCost: number | null;
 }

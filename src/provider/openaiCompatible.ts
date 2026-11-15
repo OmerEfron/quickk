@@ -37,9 +37,19 @@ export class CancelledError extends Error {
   }
 }
 
+/** Token counts as the API sent them. null means unknown. */
+export interface TokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+}
+
+export const NO_USAGE: TokenUsage = { inputTokens: null, outputTokens: null, cachedInputTokens: null };
+
 export interface CompletionResult {
   text: string;
   finishReason: string | null;
+  usage: TokenUsage;
 }
 
 export interface CompleteOptions {
@@ -88,6 +98,18 @@ export interface ParsedPayload {
   done: boolean;
   delta: string;
   finishReason: string | null;
+  /** Set only on a chunk that carries a usage object. */
+  usage?: TokenUsage;
+}
+
+/** Reads the token counts from the "usage" object of a chunk or a JSON body. */
+function readUsage(usage: any): TokenUsage {
+  const count = (value: unknown) => (typeof value === "number" ? value : null);
+  return {
+    inputTokens: count(usage?.prompt_tokens),
+    outputTokens: count(usage?.completion_tokens),
+    cachedInputTokens: count(usage?.prompt_tokens_details?.cached_tokens),
+  };
 }
 
 /** Reads one SSE payload (a JSON string, or [DONE]). */
@@ -107,7 +129,7 @@ export function parsePayload(payload: string): ParsedPayload {
   const choice = json?.choices?.[0];
   const delta = typeof choice?.delta?.content === "string" ? choice.delta.content : "";
   const finishReason = typeof choice?.finish_reason === "string" ? choice.finish_reason : null;
-  return { done: false, delta, finishReason };
+  return { done: false, delta, finishReason, ...(json?.usage ? { usage: readUsage(json.usage) } : {}) };
 }
 
 function describeApiError(json: any): string {
@@ -124,6 +146,8 @@ export function buildRequestBody(settings: ProviderSettings, messages: ChatMessa
     model: settings.model,
     messages,
     stream: true,
+    // Without this, an API that follows the OpenAI stream shape sends no token counts.
+    stream_options: { include_usage: true },
     max_tokens: settings.maxTokens,
   };
   if (settings.temperature !== null) {
@@ -250,7 +274,7 @@ async function readJsonBody(response: Response, options: CompleteOptions): Promi
     options.onDelta?.(text, text.length);
   }
   const finishReason = typeof choice?.finish_reason === "string" ? choice.finish_reason : null;
-  return { text, finishReason };
+  return { text, finishReason, usage: json?.usage ? readUsage(json.usage) : NO_USAGE };
 }
 
 async function readStream(response: Response, options: CompleteOptions): Promise<CompletionResult> {
@@ -262,6 +286,7 @@ async function readStream(response: Response, options: CompleteOptions): Promise
   const parser = new SseParser();
   let text = "";
   let finishReason: string | null = null;
+  let usage = NO_USAGE;
   let finished = false;
 
   const handle = (payloads: string[]) => {
@@ -278,6 +303,9 @@ async function readStream(response: Response, options: CompleteOptions): Promise
       if (parsed.finishReason) {
         finishReason = parsed.finishReason;
       }
+      if (parsed.usage) {
+        usage = parsed.usage;
+      }
     }
   };
 
@@ -293,5 +321,5 @@ async function readStream(response: Response, options: CompleteOptions): Promise
     handle(parser.flush());
   }
   reader.cancel().catch(() => undefined);
-  return { text, finishReason };
+  return { text, finishReason, usage };
 }
