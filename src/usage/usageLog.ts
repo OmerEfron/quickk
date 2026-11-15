@@ -6,13 +6,62 @@ const SCHEME = "quickk-usage";
 // The last path segment becomes the tab title.
 const VIEW_URI = vscode.Uri.from({ scheme: SCHEME, path: "/QuickK Usage" });
 
-/** The entries of the usage log, kept in global state: one log for this install. */
-export function readUsageLog(state: vscode.Memento): UsageEntry[] {
-  return state.get<UsageEntry[]>(LOG_KEY, []);
+// After update() resolves, VS Code can still put an older stored copy back into the cache, and the
+// next save would then build on that old copy. So the list lives in memory, and after each write
+// we watch the cache for a short time and write the memory list again if the cache differs.
+const WATCH_MS = 500;
+const POLL_MS = 20;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sameEntries = (a: UsageEntry[], b: UsageEntry[]) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The usage log of this install: one list in global state, held in memory for this session. */
+class UsageLog {
+  entries: UsageEntry[];
+  /** Saves run one at a time. */
+  private saving: Promise<void> = Promise.resolve();
+
+  constructor(private readonly state: vscode.Memento) {
+    this.entries = state.get<UsageEntry[]>(LOG_KEY, []);
+  }
+
+  add(entry: UsageEntry): void {
+    this.entries = [...this.entries, entry];
+    this.saving = this.saving.then(() => this.write()).catch(() => undefined);
+  }
+
+  private async write(): Promise<void> {
+    await this.state.update(LOG_KEY, this.entries);
+    let deadline = Date.now() + WATCH_MS;
+    while (Date.now() < deadline) {
+      await sleep(POLL_MS);
+      if (!sameEntries(this.state.get<UsageEntry[]>(LOG_KEY, []), this.entries)) {
+        await this.state.update(LOG_KEY, this.entries);
+        deadline = Date.now() + WATCH_MS;
+      }
+    }
+  }
 }
 
-export async function saveUsageEntry(state: vscode.Memento, entry: UsageEntry): Promise<void> {
-  await state.update(LOG_KEY, [...readUsageLog(state), entry]);
+const logs = new WeakMap<vscode.Memento, UsageLog>();
+
+function logOf(state: vscode.Memento): UsageLog {
+  let log = logs.get(state);
+  if (!log) {
+    log = new UsageLog(state);
+    logs.set(state, log);
+  }
+  return log;
+}
+
+/** The entries of the usage log, from memory. */
+export function readUsageLog(state: vscode.Memento): UsageEntry[] {
+  return logOf(state).entries;
+}
+
+/** Adds an entry to the memory list at once. Storing it happens in the background. */
+export function saveUsageEntry(state: vscode.Memento, entry: UsageEntry): void {
+  logOf(state).add(entry);
 }
 
 /**

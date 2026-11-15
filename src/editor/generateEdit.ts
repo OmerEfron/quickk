@@ -258,7 +258,7 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
   } finally {
     // One usage entry when the call ends, and only if text came back.
     if (textArrived) {
-      await saveUsageEntry(extension.globalState, {
+      saveUsageEntry(extension.globalState, {
         time: Date.now(),
         model: settings.model,
         apiAddress: settings.baseUrl,
