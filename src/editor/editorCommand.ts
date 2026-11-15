@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { readContextConfig, readProviderSettings } from "../config";
 import { buildEditorContext } from "../context/editorContext";
 import { buildQuestionMessages, QuestionTurn } from "../prompts";
-import { complete } from "../provider/openaiCompatible";
+import { complete, NO_USAGE, ProviderSettings, TokenUsage } from "../provider/openaiCompatible";
 import { describeError, isCancellation } from "../ui/errors";
 import {
   InlinePromptWidget,
@@ -12,6 +12,7 @@ import {
   WidgetState,
 } from "../ui/inlinePrompt";
 import { focusActivePrompt, runPrompt } from "../ui/prompt";
+import { saveUsageEntry } from "../usage/usageLog";
 import { isSensitiveFile } from "../util/secrets";
 import { EditSessionManager, Session, SessionChange } from "./editSession";
 import { generateEdit, pickTarget } from "./generateEdit";
@@ -405,8 +406,12 @@ export class EditorController implements vscode.Disposable {
     }
     runner.answer = "";
     this.setPhase(runner, "answering", { status: "Thinking...", inputValue: question });
+    let settings: ProviderSettings | undefined;
+    // complete() drops partial text when it throws, so we note here that some text came back.
+    let textArrived = false;
+    let usage: TokenUsage = NO_USAGE;
     try {
-      const settings = await readProviderSettings(this.extension.secrets);
+      settings = await readProviderSettings(this.extension.secrets);
       if (!settings || controller.signal.aborted) {
         this.setPhase(runner, this.phaseAfterRun(runner), { inputValue: question, focus: true });
         return;
@@ -437,6 +442,7 @@ export class EditorController implements vscode.Disposable {
       const result = await complete(settings, messages, {
         signal: controller.signal,
         onDelta: (delta, total) => {
+          textArrived = true;
           runner.answer += delta;
           const now = Date.now();
           if (now - lastUpdate >= ANSWER_UPDATE_MS) {
@@ -445,6 +451,7 @@ export class EditorController implements vscode.Disposable {
           }
         },
       });
+      usage = result.usage;
       runner.answer = result.text;
       runner.conversation.push({ question, answer: result.text });
       this.setPhase(runner, "answered", { inputValue: "", focus: true });
@@ -457,6 +464,20 @@ export class EditorController implements vscode.Disposable {
         this.setPhase(runner, this.phaseAfterRun(runner), { status: "Stopped.", inputValue: question, focus: true });
       } else {
         this.setPhase(runner, "error", { status: describeError(error), inputValue: question, focus: true });
+      }
+    } finally {
+      // One usage entry when the call ends, and only if text came back.
+      if (settings && textArrived) {
+        saveUsageEntry(this.extension.globalState, {
+          time: Date.now(),
+          model: settings.model,
+          apiAddress: settings.baseUrl,
+          taskKind: "question",
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cachedInputTokens: usage.cachedInputTokens,
+          estimatedCost: null,
+        });
       }
     }
   }
