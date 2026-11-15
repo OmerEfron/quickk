@@ -78,18 +78,32 @@ async function pricedEdit(model: string, usage: Record<string, unknown>): Promis
 }
 
 /** The line a call just added for this model. */
-async function newLine(model: string, call: () => Promise<void>): Promise<{ line: string; view: string }> {
-  const before = linesOf(await showUsage(), model).length;
+async function newLine(
+  model: string,
+  call: () => Promise<void>
+): Promise<{ line: string; view: string; before: string }> {
+  const before = await showUsage();
   await call();
   const view = await showUsage();
   const lines = linesOf(view, model);
-  assert.strictEqual(lines.length, before + 1, `no new line for ${model}`);
-  return { line: lines[0], view };
+  assert.strictEqual(lines.length, linesOf(before, model).length + 1, `no new line for ${model}`);
+  return { line: lines[0], view, before };
+}
+
+/** How much one number in a block grew between two views. */
+function growth(before: string, after: string, title: string, name: string): number {
+  return Number(sums(after, title)[name]) - Number(sums(before, title)[name]);
 }
 
 function assertSums(view: string, name: string, expected: string): void {
   for (const period of PERIODS) {
     assert.strictEqual(sums(view, period)[name], expected, `${period}: ${name}`);
+  }
+}
+
+function assertGrowth(before: string, after: string, name: string, expected: number): void {
+  for (const period of PERIODS) {
+    assert.strictEqual(growth(before, after, period, name), expected, `${period}: ${name}`);
   }
 }
 
@@ -120,13 +134,13 @@ describe("usage view estimated cost", function () {
   });
 
   it("prices gpt-4o-mini: 10,000 input and 1,000 output tokens show $0.0021", async () => {
-    const { line, view } = await newLine("gpt-4o-mini", () =>
+    const { line, view, before } = await newLine("gpt-4o-mini", () =>
       pricedEdit("gpt-4o-mini", { prompt_tokens: 10000, completion_tokens: 1000 })
     );
 
     assert.match(line, / {2}edit {2}gpt-4o-mini {2}input 10000 {2}output 1000 {2}\$0\.0021$/);
     assertSums(view, "Estimated cost", "$0.0021");
-    assertSums(view, "Entries with no estimated cost", "0");
+    assertGrowth(before, view, "Entries with no estimated cost", 0);
   });
 
   it("prices cached input at the cached price: 1,000 input, 400 of them cached, no output show $0.0001", async () => {
@@ -156,5 +170,19 @@ describe("usage view estimated cost", function () {
     assert.match(line, / {2}input 1000 {2}output 100 {2}\$0\.0270$/);
     // 0.00222 + 0.027 = 0.02922
     assertSums(view, "Estimated cost", "$0.0292");
+  });
+
+  it("keeps the token counts and shows no estimated cost when the cached count is larger than the input count", async () => {
+    const { line, view, before } = await newLine("gpt-4o-mini", () =>
+      pricedEdit("gpt-4o-mini", {
+        prompt_tokens: 100,
+        completion_tokens: 10,
+        prompt_tokens_details: { cached_tokens: 200 },
+      })
+    );
+
+    assert.match(line, / {2}input 100 {2}output 10 {2}unknown$/);
+    assertSums(view, "Estimated cost", "$0.0292");
+    assertGrowth(before, view, "Entries with no estimated cost", 1);
   });
 });

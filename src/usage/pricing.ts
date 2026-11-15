@@ -51,6 +51,9 @@ export function estimateCost(call: PricedCall): number | null {
   }
   // A cached split bills the cached part at the cached price. Without a split, or without a cached
   // price, every input token uses the input price.
+  if (call.cachedInputTokens !== null && call.cachedInputTokens > call.inputTokens) {
+    return null;
+  }
   const cached = price.cachedInput === undefined ? 0 : (call.cachedInputTokens ?? 0);
   const cachedPrice = price.cachedInput ?? 0;
   return ((call.inputTokens - cached) * price.input + cached * cachedPrice + call.outputTokens * price.output) / 1_000_000;
