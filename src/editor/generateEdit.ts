@@ -4,6 +4,7 @@ import { buildEditorContext } from "../context/editorContext";
 import { buildEditorMessages, buildFollowUpMessages, QuestionTurn } from "../prompts";
 import { CancelledError, complete, ProviderError } from "../provider/openaiCompatible";
 import { UserError } from "../ui/errors";
+import { saveUsageEntry } from "../usage/usageLog";
 import { commonIndent, reindent } from "../util/reindent";
 import { stripFences } from "../util/stripFences";
 import { FenceStream, writableLines } from "../util/streamFence";
@@ -161,6 +162,8 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
   let writeFailed = false;
   let flushing: Promise<void> = Promise.resolve();
   let lastFlush = 0;
+  // complete() drops partial text when it throws, so we note here that some text came back.
+  let textArrived = false;
 
   // Writes the lines that are complete so far. The last line is held back (see writableLines).
   const flush = async (): Promise<void> => {
@@ -192,6 +195,7 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
     const result = await complete(settings, messages, {
       signal: controller.signal,
       onDelta: (delta, total) => {
+        textArrived = true;
         codeLines.push(...fence.push(delta));
         progress(`Generating... (${total} characters)`);
         const now = Date.now();
@@ -251,5 +255,18 @@ export async function generateEdit(args: GenerateArgs): Promise<GenerateOutcome>
       throw new UserError("The file changed while the model was writing. Nothing was changed.");
     }
     throw error;
+  } finally {
+    // One usage entry when the call ends, and only if text came back.
+    if (textArrived) {
+      await saveUsageEntry(extension.globalState, {
+        time: Date.now(),
+        model: settings.model,
+        apiAddress: settings.baseUrl,
+        taskKind: promptMode,
+        inputTokens: null,
+        outputTokens: null,
+        estimatedCost: null,
+      });
+    }
   }
 }

@@ -30,6 +30,17 @@ export function registerUsageView(state: vscode.Memento): vscode.Disposable {
     text = renderUsageView(readUsageLog(state), Date.now());
     changed.fire(VIEW_URI);
     const doc = await vscode.workspace.openTextDocument(VIEW_URI);
+    if (doc.getText() !== text) {
+      // A copy that stayed in memory after its tab closed gets its new text a moment later.
+      await new Promise<void>((resolve) => {
+        const watch = vscode.workspace.onDidChangeTextDocument((event) => {
+          if (event.document === doc) {
+            watch.dispose();
+            resolve();
+          }
+        });
+      });
+    }
     await vscode.window.showTextDocument(doc, { preview: false });
   });
   return vscode.Disposable.from(changed, provider, command);

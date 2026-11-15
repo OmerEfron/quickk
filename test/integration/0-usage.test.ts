@@ -42,12 +42,26 @@ async function showUsage(): Promise<string> {
   return editor.document.getText().replace(/\r\n/g, "\n");
 }
 
+/** The lines under "Calls", without the empty line at the end. */
+function callLines(viewText: string): string[] {
+  return viewText.split("\nCalls\n")[1].split("\n").filter((line) => line !== "");
+}
+
+/** Runs an edit of one selected line against the mock server. */
+async function editSelection(instruction: string): Promise<vscode.TextDocument> {
+  const doc = await vscode.workspace.openTextDocument({ content: "const a = 1;\n", language: "javascript" });
+  const editor = await vscode.window.showTextDocument(doc);
+  editor.selection = new vscode.Selection(0, 0, 0, doc.lineAt(0).text.length);
+  await vscode.commands.executeCommand("quickk.editor", { instruction });
+  return doc;
+}
+
 describe("usage view", function () {
   before(async () => {
     const extension = vscode.extensions.getExtension("quickk.quickk");
     assert.ok(extension, "extension not found");
     await extension.activate();
-    server = await startMockServer(() => ({ content: "```js\nconst a = 1;\n```" }));
+    server = await startMockServer(() => ({ content: "```js\nconst a = 2;\n```" }));
     await vscode.workspace.getConfiguration("quickk").update("baseUrl", server.url, vscode.ConfigurationTarget.Global);
   });
 
@@ -61,5 +75,12 @@ describe("usage view", function () {
 
   it("shows the warning, three empty sums and a no-calls line when nothing was saved", async () => {
     assert.strictEqual(await showUsage(), EMPTY_USAGE_VIEW);
+  });
+
+  it("lists an edit that returned text, with unknown tokens and unknown cost", async () => {
+    await editSelection("Make it a constant.");
+    const lines = callLines(await showUsage());
+    assert.strictEqual(lines.length, 1);
+    assert.match(lines[0], /^\d{4}-\d\d-\d\d \d\d:\d\d {2}edit {2}gpt-4o-mini {2}input unknown {2}output unknown {2}unknown$/);
   });
 });
