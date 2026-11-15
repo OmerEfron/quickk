@@ -185,4 +185,27 @@ describe("usage view estimated cost", function () {
     assertSums(view, "Estimated cost", "$0.0292");
     assertGrowth(before, view, "Entries with no estimated cost", 1);
   });
+
+  it("shows $0.0000 on a tiny line while the sums still add the full figures", async () => {
+    // gpt-5-nano: 980 input tokens x 0.05 = 49 millionths of a dollar, under half of 0.0001.
+    let view = "";
+    for (let call = 0; call < 4; call++) {
+      ({ line: view } = await newLine("gpt-5-nano", () => pricedEdit("gpt-5-nano", { prompt_tokens: 980, completion_tokens: 0 })));
+      assert.match(view, / {2}input 980 {2}output 0 {2}\$0\.0000$/);
+    }
+
+    // 0.02922 + 4 x 0.000049 = 0.029416. Rounding each line first would leave $0.0292.
+    assertSums(await showUsage(), "Estimated cost", "$0.0294");
+  });
+
+  it("rounds half away from zero to four digits", async () => {
+    // gpt-4o-mini: 1000 input tokens x 0.15 = 0.00015, exactly half way between $0.0001 and $0.0002.
+    const { line } = await newLine("gpt-4o-mini", () => pricedEdit("gpt-4o-mini", { prompt_tokens: 1000, completion_tokens: 0 }));
+    assert.match(line, / {2}input 1000 {2}output 0 {2}\$0\.0002$/);
+    // gpt-5-nano: 1000 input tokens x 0.05 = 0.00005, half way between $0.0000 and $0.0001.
+    const nano = await newLine("gpt-5-nano", () => pricedEdit("gpt-5-nano", { prompt_tokens: 1000, completion_tokens: 0 }));
+    assert.match(nano.line, / {2}input 1000 {2}output 0 {2}\$0\.0001$/);
+    // 0.029416 + 0.00015 + 0.00005 = 0.029616
+    assertSums(nano.view, "Estimated cost", "$0.0296");
+  });
 });

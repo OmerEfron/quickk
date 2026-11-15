@@ -34,7 +34,9 @@ function tokens(count: number | null): string {
 
 /** A dollar amount with a leading $ and four digits, rounding half away from zero. */
 function dollars(amount: number): string {
-  return `$${(Math.round(amount * 10000) / 10000).toFixed(4)}`;
+  // toPrecision drops float noise, so a figure that is exactly half way (0.00015) rounds up.
+  const tenThousandths = Math.round(Number((amount * 10000).toPrecision(12)));
+  return `$${(tenThousandths / 10000).toFixed(4)}`;
 }
 
 function block(title: string, entries: UsageEntry[]): string[] {
