@@ -113,7 +113,9 @@ describe("usage view estimated cost", function () {
     assert.ok(extension, "extension not found");
     await extension.activate();
     server = await startMockServer(() => ({ content: REPLY }));
-    // The OpenAI address needs a key. This stores a fake one the way QuickK: Set Up does.
+    // The OpenAI address needs a key. This stores a fake one the way QuickK: Set Up does. That command
+    // skips the key step while the address is local, as earlier test files leave it.
+    await vscode.workspace.getConfiguration("quickk").update("baseUrl", OPENAI, vscode.ConfigurationTarget.Global);
     const folder = path.join(os.tmpdir(), "quickk-cost-test");
     await vscode.commands.executeCommand("quickk.setUp", {
       argvPath: path.join(folder, "argv.json"),
