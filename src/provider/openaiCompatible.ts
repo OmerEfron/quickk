@@ -104,7 +104,8 @@ export interface ParsedPayload {
 
 /** Reads the token counts from the "usage" object of a chunk or a JSON body. */
 function readUsage(usage: any): TokenUsage {
-  const count = (value: unknown) => (typeof value === "number" ? value : null);
+  // A count is known only when it is a non-negative whole number.
+  const count = (value: unknown) => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
   return {
     inputTokens: count(usage?.prompt_tokens),
     outputTokens: count(usage?.completion_tokens),

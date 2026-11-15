@@ -100,4 +100,93 @@ describe("usage view token counts", function () {
       assert.strictEqual(growth(before, after, period, "Entries with no estimated cost"), 1, period);
     }
   });
+
+  it("asks a streaming call to include token counts", async () => {
+    await editWith("asks-for-counts-model");
+    assert.strictEqual(server.requests[server.requests.length - 1].stream, true);
+    assert.deepStrictEqual(server.requests[server.requests.length - 1].stream_options, { include_usage: true });
+  });
+
+  it("reads the counts of a non-streaming JSON body the same way", async () => {
+    const before = await showUsage();
+    server.respond = () => ({
+      json: true,
+      content: "```js\nconst a = 2;\n```",
+      usage: { prompt_tokens: 80, completion_tokens: 9 },
+    });
+
+    await editWith("json-body-model");
+
+    const after = await showUsage();
+    const lines = linesOf(after, "json-body-model");
+    assert.strictEqual(lines.length, 1);
+    assert.match(lines[0], / {2}input 80 {2}output 9 {2}unknown$/);
+    assert.strictEqual(growth(before, after, "All time", "Input tokens"), 80);
+    assert.strictEqual(growth(before, after, "All time", "Output tokens"), 9);
+  });
+
+  it("keeps a cached split off the line and counts every prompt token as input", async () => {
+    server.respond = () => ({
+      content: "```js\nconst a = 2;\n```",
+      usage: { prompt_tokens: 1000, completion_tokens: 50, prompt_tokens_details: { cached_tokens: 400 } },
+    });
+
+    await editWith("split-counts-model");
+
+    const lines = linesOf(await showUsage(), "split-counts-model");
+    assert.strictEqual(lines.length, 1);
+    assert.match(lines[0], / {2}input 1000 {2}output 50 {2}unknown$/);
+    assert.ok(!lines[0].includes("400"));
+    assert.ok(!lines[0].includes("cached"));
+  });
+
+  it("shows a missing count as unknown, counts the entry as missing token counts, and still adds the known count", async () => {
+    const before = await showUsage();
+    server.respond = () => ({ content: "```js\nconst a = 2;\n```", usage: { completion_tokens: 20 } });
+
+    await editWith("output-only-model");
+
+    const after = await showUsage();
+    const lines = linesOf(after, "output-only-model");
+    assert.strictEqual(lines.length, 1);
+    assert.match(lines[0], / {2}input unknown {2}output 20 {2}unknown$/);
+    for (const period of PERIODS) {
+      assert.strictEqual(growth(before, after, period, "Input tokens"), 0, period);
+      assert.strictEqual(growth(before, after, period, "Output tokens"), 20, period);
+      assert.strictEqual(growth(before, after, period, "Entries missing token counts"), 1, period);
+    }
+  });
+
+  it("treats a count that is not a non-negative whole number as unknown", async () => {
+    const before = await showUsage();
+    for (const [model, usage] of [
+      ["negative-count-model", { prompt_tokens: -5, completion_tokens: 7 }],
+      ["fraction-count-model", { prompt_tokens: 7.5, completion_tokens: 7 }],
+      ["text-count-model", { prompt_tokens: "12", completion_tokens: 7 }],
+      ["null-count-model", { prompt_tokens: null, completion_tokens: 7 }],
+    ] as const) {
+      server.respond = () => ({ content: "```js\nconst a = 2;\n```", usage });
+      await editWith(model);
+    }
+
+    const after = await showUsage();
+    for (const model of ["negative", "fraction", "text", "null"]) {
+      const lines = linesOf(after, `${model}-count-model`);
+      assert.strictEqual(lines.length, 1, model);
+      assert.match(lines[0], / {2}input unknown {2}output 7 {2}unknown$/, model);
+    }
+    assert.strictEqual(growth(before, after, "All time", "Input tokens"), 0);
+    assert.strictEqual(growth(before, after, "All time", "Output tokens"), 28);
+    assert.strictEqual(growth(before, after, "All time", "Entries missing token counts"), 4);
+  });
+
+  it("keeps zero as a known count", async () => {
+    server.respond = () => ({ content: "```js\nconst a = 2;\n```", usage: { prompt_tokens: 0, completion_tokens: 0 } });
+
+    await editWith("zero-count-model");
+
+    const lines = linesOf(await showUsage(), "zero-count-model");
+    assert.strictEqual(lines.length, 1);
+    assert.match(lines[0], / {2}input 0 {2}output 0 {2}unknown$/);
+  });
 });
