@@ -2,7 +2,7 @@
   "name": "quickk",
   "displayName": "QuickK",
   "description": "Cmd+K for AI edits, code generation and terminal commands. No agent, no chat panel.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "quickk",
   "license": "MIT",
   "repository": {
