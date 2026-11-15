@@ -4,7 +4,7 @@ import Mocha from "mocha";
 
 export function run(): Promise<void> {
   const mocha = new Mocha({ ui: "bdd", color: true, timeout: 30000, grep: process.env.QUICKK_GREP });
-  for (const file of fs.readdirSync(__dirname)) {
+  for (const file of fs.readdirSync(__dirname).sort()) {
     if (file.endsWith(".test.js")) {
       mocha.addFile(path.join(__dirname, file));
     }

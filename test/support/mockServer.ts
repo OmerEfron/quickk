@@ -16,6 +16,15 @@ export interface MockReply {
   chunks?: string[];
   /** Wait this long after each piece. */
   chunkDelayMs?: number;
+  /**
+   * The usage object the API sends, as it would be on the wire, for example
+   * `{ prompt_tokens: 10, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 4 } }`.
+   * A stream carries it in a last chunk, and only when the request has `stream_options.include_usage`.
+   * Without this field the API sends no counts.
+   */
+  usage?: Record<string, unknown>;
+  /** Answer with one JSON body instead of a stream. */
+  json?: boolean;
 }
 
 export type Responder = (body: any) => MockReply;
@@ -60,6 +69,17 @@ export async function startMockServer(initial: Responder, port = 0): Promise<Moc
         return;
       }
 
+      if (reply.json) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            choices: [{ message: { role: "assistant", content: reply.content ?? "" }, finish_reason: reply.finishReason ?? "stop" }],
+            ...(reply.usage ? { usage: reply.usage } : {}),
+          })
+        );
+        return;
+      }
+
       res.writeHead(200, { "content-type": "text/event-stream" });
       let closed = false;
       res.on("close", () => {
@@ -88,6 +108,9 @@ export async function startMockServer(initial: Responder, port = 0): Promise<Moc
       res.write(
         `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: reply.finishReason ?? "stop" }] })}\n\n`
       );
+      if (reply.usage && body?.stream_options?.include_usage === true) {
+        res.write(`data: ${JSON.stringify({ choices: [], usage: reply.usage })}\n\n`);
+      }
       res.write("data: [DONE]\n\n");
       res.end();
     });

@@ -22,7 +22,10 @@ function diagnostics(text: string, hidden: HiddenLines): { code: number; line: n
 const OLD = ["const example = (a: number) => {", "    for (let i = 0; i < 10; i++) {", "        if (i % 2 === 0) {", "            a++", "        }", "    }", "}"];
 const NEU = "const example = (a: number) => Array.from({ length: 10 }, (_, i) => (i % 2 === 0 ? a++ : a));";
 
-describe("checker text while a proposal is open", () => {
+describe("checker text while a proposal is open", function () {
+  // The first run starts the TypeScript checker, which takes longer than Mocha's 2 second limit on CI.
+  this.timeout(15000);
+
   it("does not report a redeclare error for a name that is in both copies", () => {
     const text = [...OLD, NEU, "", "example(1);"].join("\n");
     const found = diagnostics(text, { startLine: 0, lineCount: OLD.length });
