@@ -133,6 +133,28 @@ describe("usage view estimated cost", function () {
     await server.close();
   });
 
+  it("shows tokens and no estimated cost for a local address, even with a listed model, and the dollar sums stay unknown", async () => {
+    server.respond = () => ({ content: REPLY, usage: { prompt_tokens: 10000, completion_tokens: 1000 } });
+    // No switch is needed: the mock address is the configured one.
+    const { line, view } = await newLine("gpt-4o-mini", () => editWith("gpt-4o-mini", server.url));
+
+    assert.match(line, / {2}edit {2}gpt-4o-mini {2}input 10000 {2}output 1000 {2}unknown$/);
+    // A period with no priced entry shows unknown, not $0.0000.
+    assertSums(view, "Estimated cost", "unknown");
+  });
+
+  it("shows tokens and no estimated cost for a model that is not on the price list", async () => {
+    const requests = server.requests.length;
+    // A dated snapshot id is not on the list.
+    const { line, view } = await newLine("gpt-4o-2024-08-06", () =>
+      pricedEdit("gpt-4o-2024-08-06", { prompt_tokens: 10000, completion_tokens: 1000 })
+    );
+
+    assert.strictEqual(server.requests.length, requests + 1, "the call did not reach the mock server");
+    assert.match(line, / {2}input 10000 {2}output 1000 {2}unknown$/);
+    assertSums(view, "Estimated cost", "unknown");
+  });
+
   it("prices gpt-4o-mini: 10,000 input and 1,000 output tokens show $0.0021", async () => {
     const { line, view, before } = await newLine("gpt-4o-mini", () =>
       pricedEdit("gpt-4o-mini", { prompt_tokens: 10000, completion_tokens: 1000 })

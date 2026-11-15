@@ -228,3 +228,32 @@ describe("complete", () => {
     await assert.rejects(() => complete(settings, [], { signal: controller.signal }), CancelledError);
   });
 });
+
+describe("test-only redirect of the OpenAI address", () => {
+  const SWITCH = "QUICKK_TEST_OPENAI_REDIRECT";
+  const OPENAI = "https://api.openai.com/v1";
+
+  async function urlSentFor(baseUrl: string): Promise<string> {
+    let sent = "";
+    const fetchImpl = (async (url: string) => {
+      sent = url;
+      return streamResponse([sse(chunk("ok", "stop"), "[DONE]")]);
+    }) as unknown as typeof fetch;
+    await complete({ ...settings, baseUrl }, [], { fetchImpl });
+    return sent;
+  }
+
+  afterEach(() => {
+    delete process.env[SWITCH];
+  });
+
+  it("keeps the configured address when the switch is off", async () => {
+    assert.strictEqual(await urlSentFor(OPENAI), "https://api.openai.com/v1/chat/completions");
+  });
+
+  it("sends only the OpenAI address to the redirect when the switch is on", async () => {
+    process.env[SWITCH] = "http://127.0.0.1:9999/v1";
+    assert.strictEqual(await urlSentFor(` ${OPENAI}/ `), "http://127.0.0.1:9999/v1/chat/completions");
+    assert.strictEqual(await urlSentFor("https://example.test/v1"), "https://example.test/v1/chat/completions");
+  });
+});
